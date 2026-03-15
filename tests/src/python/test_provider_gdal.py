@@ -129,6 +129,53 @@ class PyQgsGdalProvider(QgisTestCase, RasterProviderTestCase):
         encodedUri = QgsProviderRegistry.instance().encodeUri("gdal", parts)
         self.assertEqual(encodedUri, uri)
 
+    def testDecodeEncodeUriOpenFileGDB(self):
+        """Test decodeUri/encodeUri OpenFileGDB support"""
+        uri = "/my/raster.gdb"
+        parts = QgsProviderRegistry.instance().decodeUri("gdal", uri)
+        self.assertEqual(parts, {"path": "/my/raster.gdb", "layerName": None})
+        encodedUri = QgsProviderRegistry.instance().encodeUri("gdal", parts)
+        self.assertEqual(encodedUri, uri)
+
+        uri = "OpenFileGDB:/my/raster.gdb"
+        parts = QgsProviderRegistry.instance().decodeUri("gdal", uri)
+        self.assertEqual(parts, {"path": "/my/raster.gdb", "layerName": None})
+        encodedUri = QgsProviderRegistry.instance().encodeUri("gdal", parts)
+        self.assertEqual(encodedUri, "/my/raster.gdb")
+
+        uri = 'OpenFileGDB:"/my/raster.gdb"'
+        parts = QgsProviderRegistry.instance().decodeUri("gdal", uri)
+        self.assertEqual(parts, {"path": "/my/raster.gdb", "layerName": None})
+        encodedUri = QgsProviderRegistry.instance().encodeUri("gdal", parts)
+        self.assertEqual(encodedUri, "/my/raster.gdb")
+
+        uri = "OpenFileGDB:/my/raster.gdb:mylayer"
+        parts = QgsProviderRegistry.instance().decodeUri("gdal", uri)
+        self.assertEqual(parts, {"path": "/my/raster.gdb", "layerName": "mylayer"})
+        encodedUri = QgsProviderRegistry.instance().encodeUri("gdal", parts)
+        self.assertEqual(encodedUri, 'OpenFileGDB:"/my/raster.gdb":mylayer')
+
+        uri = 'OpenFileGDB:"/my/raster.gdb":mylayer'
+        parts = QgsProviderRegistry.instance().decodeUri("gdal", uri)
+        self.assertEqual(parts, {"path": "/my/raster.gdb", "layerName": "mylayer"})
+        encodedUri = QgsProviderRegistry.instance().encodeUri("gdal", parts)
+        self.assertEqual(encodedUri, 'OpenFileGDB:"/my/raster.gdb":mylayer')
+
+        uri = 'OpenFileGDB:"e:\EUSeaMap_2023_CaspianSea\EUSeaMap_2023_CaspianSea.gdb":EUSM2023_caspian_confidence_classification_overall'
+        parts = QgsProviderRegistry.instance().decodeUri("gdal", uri)
+        self.assertEqual(
+            parts,
+            {
+                "path": "e:\\EUSeaMap_2023_CaspianSea\\EUSeaMap_2023_CaspianSea.gdb",
+                "layerName": "EUSM2023_caspian_confidence_classification_overall",
+            },
+        )
+        encodedUri = QgsProviderRegistry.instance().encodeUri("gdal", parts)
+        self.assertEqual(
+            encodedUri,
+            'OpenFileGDB:"e:\EUSeaMap_2023_CaspianSea\EUSeaMap_2023_CaspianSea.gdb":EUSM2023_caspian_confidence_classification_overall',
+        )
+
     def testDecodeEncodeUriOptions(self):
         """Test decodeUri/encodeUri options support"""
 
