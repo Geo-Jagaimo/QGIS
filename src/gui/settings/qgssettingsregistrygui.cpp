@@ -16,7 +16,12 @@
 #include "qgssettingsregistrygui.h"
 
 #include "qgsabstractdbsourceselect.h"
+#include "qgsaddtaborgroup.h"
 #include "qgsapplication.h"
+#include "qgscodeeditor.h"
+#include "qgsdualview.h"
+#include "qgsfeaturefiltermodel.h"
+#include "qgsmaptool.h"
 #include "qgssettings.h"
 #include "qgssettingsentryenumflag.h"
 #include "qgssettingsentryimpl.h"
@@ -132,6 +137,17 @@ QgsSettingsRegistryGui::QgsSettingsRegistryGui()
   settingsDefaultMeasureColor->copyValueFromKeys( u"/qgis/default_measure_color_red"_s, u"/qgis/default_measure_color_green"_s, u"/qgis/default_measure_color_blue"_s, QString(), true );
   settingsSegmentationToleranceType->copyValueFromKey( u"qgis/segmentationToleranceType"_s, true );
   settingsSegmentationToleranceType->copyValueFromKey( u"/qgis/segmentationToleranceType"_s, true );
+  QgsFeatureFilterModel::settingsMaxEntriesRelationWidget->copyValueFromKey( u"gui/maxEntriesRelationWidget"_s, true );
+  QgsCodeEditor::settingFontFamily->copyValueFromKey( u"gui/codeEditor/fontfamily"_s, true );
+  QgsCodeEditor::settingFontSize->copyValueFromKey( u"gui/codeEditor/fontsize"_s, true );
+  QgsMapTool::settingSearchRadiusMM->copyValueFromKey( u"Map/searchRadiusMM"_s, true );
+  QgsMapTool::settingSearchRadiusMM->copyValueFromKey( u"/Map/searchRadiusMM"_s, true );
+  QgsAddAttributeFormContainerDialog::settingsDefaultTabColumnCount->copyValueFromKey( u"qgis/attributeForm/defaultTabColumnCount"_s, true );
+  QgsAddAttributeFormContainerDialog::settingsDefaultTabColumnCount->copyValueFromKey( u"/qgis/attributeForm/defaultTabColumnCount"_s, true );
+  QgsAddAttributeFormContainerDialog::settingsDefaultGroupColumnCount->copyValueFromKey( u"qgis/attributeForm/defaultGroupColumnCount"_s, true );
+  QgsAddAttributeFormContainerDialog::settingsDefaultGroupColumnCount->copyValueFromKey( u"/qgis/attributeForm/defaultGroupColumnCount"_s, true );
+  QgsDualView::settingsFeatureListHighlightFeature->copyValueFromKey( u"qgis/attributeTable/featureListHighlightFeature"_s, true );
+  QgsDualView::settingsFeatureListHighlightFeature->copyValueFromKey( u"/qgis/attributeTable/featureListHighlightFeature"_s, true );
 
   QgsAbstractDbSourceSelect::settingHoldDialogOpen->copyValueFromKey( u"ogr/GPKGSourceSelect/HoldDialogOpen"_s, { u"ogr/GPKGSourceSelect"_s }, true );
   QgsAbstractDbSourceSelect::settingHoldDialogOpen->copyValueFromKey( u"ogr/SQLiteSourceSelect/HoldDialogOpen"_s, { u"ogr/SQLiteSourceSelect"_s }, true );
