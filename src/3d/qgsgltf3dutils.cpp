@@ -315,13 +315,30 @@ static QgsMaterial *parseMaterial( tinygltf::Model &model, int materialIndex, QS
     tinygltf::Texture &tex = model.textures[pbr.baseColorTexture.index];
 
     // Source can be undefined if texture is provided by an extension
+    // (e.g. EXT_texture_webp or KHR_texture_basisu)
     if ( tex.source < 0 )
     {
-      QgsMetalRoughMaterial *pbrMaterial = new QgsMetalRoughMaterial;
-      pbrMaterial->setMetalness( pbr.metallicFactor ); // [0..1] or texture
-      pbrMaterial->setRoughness( pbr.roughnessFactor );
-      pbrMaterial->setBaseColor( QColor::fromRgbF( pbr.baseColorFactor[0], pbr.baseColorFactor[1], pbr.baseColorFactor[2], pbr.baseColorFactor[3] ) );
-      return pbrMaterial;
+      auto extIt = tex.extensions.find( "EXT_texture_webp" );
+      if ( extIt == tex.extensions.end() )
+        extIt = tex.extensions.find( "KHR_texture_basisu" );
+
+      if ( extIt != tex.extensions.end() )
+      {
+        const tinygltf::Value &ext = extIt->second;
+        if ( ext.IsObject() && ext.Has( "source" ) )
+        {
+          tex.source = ext.Get( "source" ).GetNumberAsInt();
+        }
+      }
+
+      if ( tex.source < 0 )
+      {
+        QgsMetalRoughMaterial *pbrMaterial = new QgsMetalRoughMaterial;
+        pbrMaterial->setMetalness( pbr.metallicFactor ); // [0..1] or texture
+        pbrMaterial->setRoughness( pbr.roughnessFactor );
+        pbrMaterial->setBaseColor( QColor::fromRgbF( pbr.baseColorFactor[0], pbr.baseColorFactor[1], pbr.baseColorFactor[2], pbr.baseColorFactor[3] ) );
+        return pbrMaterial;
+      }
     }
 
     tinygltf::Image &img = model.images[tex.source];
