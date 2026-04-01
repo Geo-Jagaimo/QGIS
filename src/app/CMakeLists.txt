@@ -369,7 +369,6 @@ if (WITH_3D)
     3d/qgsgoochmaterialwidget.cpp
     3d/qgslightswidget.cpp
     3d/qgsline3dsymbolwidget.cpp
-    3d/qgsmaterialwidget.cpp
     3d/qgsmesh3dsymbolwidget.cpp
     3d/qgsmetalroughmaterialwidget.cpp
     3d/qgsnullmaterialwidget.cpp
@@ -395,6 +394,7 @@ if (WITH_3D)
     3d/qgs3dviewsmanagerdialog.cpp
     3d/qgs3ddebugwidget.cpp
     3d/qgsmaptoolclippingplanes.cpp
+    3d/qgs3dcameracontrolswidget.cpp
   )
 endif()
 

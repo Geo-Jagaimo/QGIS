@@ -4297,6 +4297,27 @@ int QgisEvent = QEvent::User + 1;
     Q_ENUM( Point3DShape )
 
     /**
+     * Material rendering techniques.
+     *
+     * \warning This is not considered stable API, and may change in future QGIS releases. It is
+     * exposed to the Python bindings as a tech preview only.
+     *
+     * \since QGIS 4.2
+     */
+    enum class MaterialRenderingTechnique : int
+    {
+      Triangles,                 //!< Triangle based rendering (default)
+      Lines,                     //!< Line based rendering, requires line data
+      InstancedPoints,           //!< Instanced based rendering, requiring triangles and point data
+      Points,                    //!< Point based rendering, requires point data
+      TrianglesWithFixedTexture, //!< Triangle based rendering, using a fixed, non-user-configurable texture (e.g. for terrain rendering)
+      TrianglesFromModel,        //!< Triangle based rendering, using a model object source
+      TrianglesDataDefined,      //!< Triangle based rendering with possibility of datadefined color
+      Billboards,                //!< Flat billboard rendering
+    };
+    Q_ENUM( MaterialRenderingTechnique )
+
+    /**
      * Light source types for 3D scenes.
      *
      * \since QGIS 3.26

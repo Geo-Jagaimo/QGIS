@@ -7722,6 +7722,36 @@ Qgis.Point3DShape.__doc__ = """3D point shape types.
 # --
 Qgis.Point3DShape.baseClass = Qgis
 # monkey patching scoped based enum
+Qgis.MaterialRenderingTechnique.Triangles.__doc__ = "Triangle based rendering (default)"
+Qgis.MaterialRenderingTechnique.Lines.__doc__ = "Line based rendering, requires line data"
+Qgis.MaterialRenderingTechnique.InstancedPoints.__doc__ = "Instanced based rendering, requiring triangles and point data"
+Qgis.MaterialRenderingTechnique.Points.__doc__ = "Point based rendering, requires point data"
+Qgis.MaterialRenderingTechnique.TrianglesWithFixedTexture.__doc__ = "Triangle based rendering, using a fixed, non-user-configurable texture (e.g. for terrain rendering)"
+Qgis.MaterialRenderingTechnique.TrianglesFromModel.__doc__ = "Triangle based rendering, using a model object source"
+Qgis.MaterialRenderingTechnique.TrianglesDataDefined.__doc__ = "Triangle based rendering with possibility of datadefined color"
+Qgis.MaterialRenderingTechnique.Billboards.__doc__ = "Flat billboard rendering"
+Qgis.MaterialRenderingTechnique.__doc__ = """Material rendering techniques.
+
+.. warning::
+
+   This is not considered stable API, and may change in future QGIS releases. It is
+   exposed to the Python bindings as a tech preview only.
+
+.. versionadded:: 4.2
+
+* ``Triangles``: Triangle based rendering (default)
+* ``Lines``: Line based rendering, requires line data
+* ``InstancedPoints``: Instanced based rendering, requiring triangles and point data
+* ``Points``: Point based rendering, requires point data
+* ``TrianglesWithFixedTexture``: Triangle based rendering, using a fixed, non-user-configurable texture (e.g. for terrain rendering)
+* ``TrianglesFromModel``: Triangle based rendering, using a model object source
+* ``TrianglesDataDefined``: Triangle based rendering with possibility of datadefined color
+* ``Billboards``: Flat billboard rendering
+
+"""
+# --
+Qgis.MaterialRenderingTechnique.baseClass = Qgis
+# monkey patching scoped based enum
 Qgis.LightSourceType.Point.__doc__ = "Point light source"
 Qgis.LightSourceType.Directional.__doc__ = "Directional light source"
 Qgis.LightSourceType.__doc__ = """Light source types for 3D scenes.
