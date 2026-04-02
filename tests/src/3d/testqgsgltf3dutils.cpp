@@ -46,6 +46,7 @@ class TestQgsGltf3DUtils : public QgsTest
     void testInvalid();
     void testBox();
     void testBoxTextured();
+    void testBoxTexturedWebp();
     void testTransforms();
 
   private:
@@ -186,6 +187,53 @@ void TestQgsGltf3DUtils::testBoxTextured()
   QCOMPARE( indexAttr->count(), 36 );
   QCOMPARE( indexAttr->vertexBaseType(), Qt3DCore::QAttribute::UnsignedShort );
   QCOMPARE( indexAttr->vertexSize(), 1 );
+
+  QVector<QgsTextureMaterial *> textureMaterials = child->componentsOfType<QgsTextureMaterial>();
+  QCOMPARE( textureMaterials.count(), 1 );
+  QgsTextureMaterial *textureMaterial = textureMaterials[0];
+  QVERIFY( textureMaterial->texture() );
+
+  delete entity;
+}
+
+void TestQgsGltf3DUtils::testBoxTexturedWebp()
+{
+  const QString dataDir( TEST_DATA_DIR );
+  QString dataFile = dataDir + "/gltf/BoxTexturedWebp.glb";
+
+  QgsGltf3DUtils::EntityTransform transform;
+
+  QFile f( dataFile );
+  QVERIFY( f.open( QIODevice::ReadOnly ) );
+
+  Qt3DCore::QEntity *entity = QgsGltf3DUtils::gltfToEntity( f.readAll(), transform, QString(), nullptr );
+  QVERIFY( entity );
+
+  QCOMPARE( entity->children().count(), 1 );
+  Qt3DCore::QEntity *child = qobject_cast<Qt3DCore::QEntity *>( entity->children()[0] );
+  QVERIFY( child );
+
+  QVector<Qt3DRender::QGeometryRenderer *> geomRenderers = child->componentsOfType<Qt3DRender::QGeometryRenderer>();
+  QCOMPARE( geomRenderers.count(), 1 );
+  Qt3DRender::QGeometryRenderer *geomRenderer = geomRenderers[0];
+  QCOMPARE( geomRenderer->vertexCount(), 36 );
+  QCOMPARE( geomRenderer->primitiveType(), Qt3DRender::QGeometryRenderer::Triangles );
+  Qt3DCore::QGeometry *geometry = geomRenderer->geometry();
+  QVERIFY( geometry );
+  QVector<Qt3DCore::QAttribute *> attributes = geometry->attributes();
+  QCOMPARE( attributes.count(), 4 );
+
+  Qt3DCore::QAttribute *positionAttr = attributes[0];
+  QCOMPARE( positionAttr->name(), Qt3DCore::QAttribute::defaultPositionAttributeName() );
+  QCOMPARE( positionAttr->count(), 24 );
+
+  Qt3DCore::QAttribute *normalAttr = attributes[1];
+  QCOMPARE( normalAttr->name(), Qt3DCore::QAttribute::defaultNormalAttributeName() );
+  QCOMPARE( normalAttr->count(), 24 );
+
+  Qt3DCore::QAttribute *texAttr = attributes[2];
+  QCOMPARE( texAttr->name(), Qt3DCore::QAttribute::defaultTextureCoordinateAttributeName() );
+  QCOMPARE( texAttr->count(), 24 );
 
   QVector<QgsTextureMaterial *> textureMaterials = child->componentsOfType<QgsTextureMaterial>();
   QCOMPARE( textureMaterials.count(), 1 );
