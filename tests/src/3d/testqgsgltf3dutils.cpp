@@ -225,15 +225,30 @@ void TestQgsGltf3DUtils::testBoxTexturedWebp()
 
   Qt3DCore::QAttribute *positionAttr = attributes[0];
   QCOMPARE( positionAttr->name(), Qt3DCore::QAttribute::defaultPositionAttributeName() );
+  QCOMPARE( positionAttr->attributeType(), Qt3DCore::QAttribute::VertexAttribute );
   QCOMPARE( positionAttr->count(), 24 );
+  QCOMPARE( positionAttr->vertexBaseType(), Qt3DCore::QAttribute::Float );
+  QCOMPARE( positionAttr->vertexSize(), 3 );
 
   Qt3DCore::QAttribute *normalAttr = attributes[1];
   QCOMPARE( normalAttr->name(), Qt3DCore::QAttribute::defaultNormalAttributeName() );
+  QCOMPARE( normalAttr->attributeType(), Qt3DCore::QAttribute::VertexAttribute );
   QCOMPARE( normalAttr->count(), 24 );
+  QCOMPARE( normalAttr->vertexBaseType(), Qt3DCore::QAttribute::Float );
+  QCOMPARE( normalAttr->vertexSize(), 3 );
 
   Qt3DCore::QAttribute *texAttr = attributes[2];
   QCOMPARE( texAttr->name(), Qt3DCore::QAttribute::defaultTextureCoordinateAttributeName() );
+  QCOMPARE( texAttr->attributeType(), Qt3DCore::QAttribute::VertexAttribute );
   QCOMPARE( texAttr->count(), 24 );
+  QCOMPARE( texAttr->vertexBaseType(), Qt3DCore::QAttribute::Float );
+  QCOMPARE( texAttr->vertexSize(), 2 );
+
+  Qt3DCore::QAttribute *indexAttr = attributes[3];
+  QCOMPARE( indexAttr->attributeType(), Qt3DCore::QAttribute::IndexAttribute );
+  QCOMPARE( indexAttr->count(), 36 );
+  QCOMPARE( indexAttr->vertexBaseType(), Qt3DCore::QAttribute::UnsignedShort );
+  QCOMPARE( indexAttr->vertexSize(), 1 );
 
   QVector<QgsTextureMaterial *> textureMaterials = child->componentsOfType<QgsTextureMaterial>();
   QCOMPARE( textureMaterials.count(), 1 );
