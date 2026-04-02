@@ -47,6 +47,7 @@ class TestQgsGltf3DUtils : public QgsTest
     void testBox();
     void testBoxTextured();
     void testBoxTexturedWebp();
+    void testBoxTexturedBasisu();
     void testTransforms();
 
   private:
@@ -196,19 +197,8 @@ void TestQgsGltf3DUtils::testBoxTextured()
   delete entity;
 }
 
-void TestQgsGltf3DUtils::testBoxTexturedWebp()
+static void verifyTexturedBoxEntity( Qt3DCore::QEntity *entity )
 {
-  const QString dataDir( TEST_DATA_DIR );
-  QString dataFile = dataDir + "/gltf/BoxTexturedWebp.glb";
-
-  QgsGltf3DUtils::EntityTransform transform;
-
-  QFile f( dataFile );
-  QVERIFY( f.open( QIODevice::ReadOnly ) );
-
-  Qt3DCore::QEntity *entity = QgsGltf3DUtils::gltfToEntity( f.readAll(), transform, QString(), nullptr );
-  QVERIFY( entity );
-
   QCOMPARE( entity->children().count(), 1 );
   Qt3DCore::QEntity *child = qobject_cast<Qt3DCore::QEntity *>( entity->children()[0] );
   QVERIFY( child );
@@ -254,6 +244,40 @@ void TestQgsGltf3DUtils::testBoxTexturedWebp()
   QCOMPARE( textureMaterials.count(), 1 );
   QgsTextureMaterial *textureMaterial = textureMaterials[0];
   QVERIFY( textureMaterial->texture() );
+}
+
+void TestQgsGltf3DUtils::testBoxTexturedWebp()
+{
+  const QString dataDir( TEST_DATA_DIR );
+  QString dataFile = dataDir + "/gltf/BoxTexturedWebp.glb";
+
+  QgsGltf3DUtils::EntityTransform transform;
+
+  QFile f( dataFile );
+  QVERIFY( f.open( QIODevice::ReadOnly ) );
+
+  Qt3DCore::QEntity *entity = QgsGltf3DUtils::gltfToEntity( f.readAll(), transform, QString(), nullptr );
+  QVERIFY( entity );
+
+  verifyTexturedBoxEntity( entity );
+
+  delete entity;
+}
+
+void TestQgsGltf3DUtils::testBoxTexturedBasisu()
+{
+  const QString dataDir( TEST_DATA_DIR );
+  QString dataFile = dataDir + "/gltf/BoxTexturedBasisu.glb";
+
+  QgsGltf3DUtils::EntityTransform transform;
+
+  QFile f( dataFile );
+  QVERIFY( f.open( QIODevice::ReadOnly ) );
+
+  Qt3DCore::QEntity *entity = QgsGltf3DUtils::gltfToEntity( f.readAll(), transform, QString(), nullptr );
+  QVERIFY( entity );
+
+  verifyTexturedBoxEntity( entity );
 
   delete entity;
 }

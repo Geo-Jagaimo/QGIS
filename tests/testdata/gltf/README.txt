@@ -7,3 +7,4 @@ Models coming from https://github.com/KhronosGroup/glTF-Sample-Models
 Original models created for QGIS testing
 
 - BoxTexturedWebp.glb: A textured box using the EXT_texture_webp extension. Created by QGIS Contributors.
+- BoxTexturedBasisu.glb: A textured box using the KHR_texture_basisu extension. Created by QGIS Contributors.
