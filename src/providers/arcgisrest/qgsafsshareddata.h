@@ -59,8 +59,19 @@ class QgsAfsSharedData
     // lock must already be obtained by caller, and ensureObjectIdsFetched MUST have been called!
     QgsFeatureId objectIdToFeatureId( quint32 oid );
 
-    // ensureObjectIdsFetched MUST have been called!
-    bool getFeature( QgsFeatureId id, QgsFeature &f, const QgsRectangle &filterRect = QgsRectangle(), QgsFeedback *feedback = nullptr );
+    /**
+     * Retrieves a feature by \a id.
+     *
+     * \param id target feature ID
+     * \param f feature to be populated
+     * \param pendingFeatureIds optional list of other features which are desirable to request in a batch operation, if a network request is required to fetch the target feature.
+     * \param feedback
+     * \returns TRUE if matching feature was retrieved
+     *
+     * \warning ensureObjectIdsFetched() MUST have been called before calling this!
+     */
+    bool getFeature( QgsFeatureId id, QgsFeature &f, const QList<QgsFeatureId> &pendingFeatureIds = QList< QgsFeatureId >(), QgsFeedback *feedback = nullptr );
+
     // ensureObjectIdsFetched MUST have been called!
     QgsFeatureIds getFeatureIdsInExtent( const QgsRectangle &extent, QgsFeedback *feedback );
 
@@ -91,7 +102,9 @@ class QgsAfsSharedData
     QString mObjectIdFieldName;
     int mObjectIdFieldIdx = -1;
 
-    QList<quint32> mObjectIds;
+    // list index is feature id, value is object ID
+    QList<quint32> mFeatureIdsToObjectIds;
+    // hash key is object ID, value is feature ID
     QHash<quint32, QgsFeatureId> mObjectIdToFeatureId;
 
     QSet<QgsFeatureId> mDeletedFeatureIds;

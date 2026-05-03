@@ -1536,13 +1536,15 @@ bool QgsGeometry::intersects( const QgsRectangle &r ) const
     return true;
   }
 
-  // Workaround for issue issue GH #51429
+#if ( GEOS_VERSION_MAJOR == 3 && GEOS_VERSION_MINOR < 12 )
+  // Workaround for issue issue GH #51492
   // in case of multi polygon, intersection with an empty rect fails
   if ( flatType == Qgis::WkbType::MultiPolygon && r.isEmpty() )
   {
     const QgsPointXY center { r.xMinimum(), r.yMinimum() };
     return contains( QgsGeometry::fromPointXY( center ) );
   }
+#endif
 
   QgsGeometry g = fromRect( r );
   return intersects( g );
@@ -2564,7 +2566,7 @@ QgsGeometryConstPartIterator QgsGeometry::constParts() const
   return QgsGeometryConstPartIterator( d->geometry.get() );
 }
 
-QgsGeometry QgsGeometry::buffer( double distance, int segments ) const
+QgsGeometry QgsGeometry::buffer( double distance, int segments, QgsFeedback *feedback ) const
 {
   if ( !d->geometry )
   {
@@ -2573,7 +2575,7 @@ QgsGeometry QgsGeometry::buffer( double distance, int segments ) const
 
   QgsGeos g( d->geometry.get() );
   mLastError.clear();
-  std::unique_ptr<QgsAbstractGeometry> geom( g.buffer( distance, segments, &mLastError ) );
+  std::unique_ptr<QgsAbstractGeometry> geom( g.buffer( distance, segments, &mLastError, feedback ) );
   if ( !geom )
   {
     QgsGeometry result;
@@ -2583,7 +2585,7 @@ QgsGeometry QgsGeometry::buffer( double distance, int segments ) const
   return QgsGeometry( std::move( geom ) );
 }
 
-QgsGeometry QgsGeometry::buffer( double distance, int segments, Qgis::EndCapStyle endCapStyle, Qgis::JoinStyle joinStyle, double miterLimit ) const
+QgsGeometry QgsGeometry::buffer( double distance, int segments, Qgis::EndCapStyle endCapStyle, Qgis::JoinStyle joinStyle, double miterLimit, QgsFeedback *feedback ) const
 {
   if ( !d->geometry )
   {
@@ -2592,7 +2594,7 @@ QgsGeometry QgsGeometry::buffer( double distance, int segments, Qgis::EndCapStyl
 
   QgsGeos g( d->geometry.get() );
   mLastError.clear();
-  QgsAbstractGeometry *geom = g.buffer( distance, segments, endCapStyle, joinStyle, miterLimit, &mLastError );
+  QgsAbstractGeometry *geom = g.buffer( distance, segments, endCapStyle, joinStyle, miterLimit, &mLastError, feedback );
   if ( !geom )
   {
     QgsGeometry result;
@@ -2757,7 +2759,7 @@ QgsGeometry QgsGeometry::extendLine( double startDistance, double endDistance ) 
   }
 }
 
-QgsGeometry QgsGeometry::simplify( double tolerance ) const
+QgsGeometry QgsGeometry::simplify( double tolerance, QgsFeedback *feedback ) const
 {
   if ( !d->geometry )
   {
@@ -2766,7 +2768,7 @@ QgsGeometry QgsGeometry::simplify( double tolerance ) const
 
   QgsGeos geos( d->geometry.get() );
   mLastError.clear();
-  std::unique_ptr< QgsAbstractGeometry > simplifiedGeom( geos.simplify( tolerance, &mLastError ) );
+  std::unique_ptr< QgsAbstractGeometry > simplifiedGeom( geos.simplify( tolerance, &mLastError, feedback ) );
   if ( !simplifiedGeom )
   {
     QgsGeometry result;
@@ -2928,6 +2930,32 @@ QgsGeometry QgsGeometry::concaveHull( double targetPercent, bool allowHoles, Qgs
   QgsGeos geos( d->geometry.get() );
   mLastError.clear();
   std::unique_ptr< QgsAbstractGeometry > concaveHull( geos.concaveHull( targetPercent, allowHoles, &mLastError, feedback ) );
+  if ( !concaveHull )
+  {
+    QgsGeometry geom;
+    geom.mLastError = mLastError;
+    return geom;
+  }
+  return QgsGeometry( std::move( concaveHull ) );
+}
+
+QgsGeometry QgsGeometry::concaveHullOfPolygons( double lengthRatio, bool allowHoles, bool isTight, QgsFeedback *feedback ) const
+{
+  if ( !d->geometry )
+  {
+    return QgsGeometry();
+  }
+
+  if ( type() != Qgis::GeometryType::Polygon )
+  {
+    QgsGeometry geom;
+    geom.mLastError = u"Only Polygon or MultiPolygon geometries are supported"_s;
+    return geom;
+  }
+
+  QgsGeos geos( d->geometry.get() );
+  mLastError.clear();
+  std::unique_ptr< QgsAbstractGeometry > concaveHull( geos.concaveHullOfPolygons( lengthRatio, allowHoles, isTight, &mLastError, feedback ) );
   if ( !concaveHull )
   {
     QgsGeometry geom;
@@ -3293,7 +3321,7 @@ QgsGeometry QgsGeometry::difference( const QgsGeometry &geometry, const QgsGeome
   return QgsGeometry( std::move( resultGeom ) );
 }
 
-QgsGeometry QgsGeometry::symDifference( const QgsGeometry &geometry, const QgsGeometryParameters &parameters ) const
+QgsGeometry QgsGeometry::symDifference( const QgsGeometry &geometry, const QgsGeometryParameters &parameters, QgsFeedback *feedback ) const
 {
   if ( !d->geometry || geometry.isNull() )
   {
@@ -3303,7 +3331,7 @@ QgsGeometry QgsGeometry::symDifference( const QgsGeometry &geometry, const QgsGe
   QgsGeos geos( d->geometry.get() );
 
   mLastError.clear();
-  std::unique_ptr< QgsAbstractGeometry > resultGeom( geos.symDifference( geometry.d->geometry.get(), &mLastError, parameters ) );
+  std::unique_ptr< QgsAbstractGeometry > resultGeom( geos.symDifference( geometry.d->geometry.get(), &mLastError, parameters, feedback ) );
   if ( !resultGeom )
   {
     QgsGeometry geom;
@@ -3716,6 +3744,9 @@ bool QgsGeometry::isGeosEqual( const QgsGeometry &g ) const
 
 bool QgsGeometry::isExactlyEqual( const QgsGeometry &g, Qgis::GeometryBackend backend ) const
 {
+  // === WARNING ===
+  // if tolerance/epsilon value is changed in `geos.isFuzzyEqual` or in implementation of `QgsAbstractGeometry::operator==`, documentation must be updaded accordingly and also changed in expression helper files (resources/function_help/json)
+
   if ( !d->geometry || g.isNull() )
   {
     return false;
@@ -3734,13 +3765,13 @@ bool QgsGeometry::isExactlyEqual( const QgsGeometry &g, Qgis::GeometryBackend ba
   {
     case Qgis::GeometryBackend::GEOS:
     {
-      //  another nice fast check upfront -- if the bounding boxes aren't equal, the geometries themselves can't be equal!
-      if ( d->geometry->boundingBox() != g.d->geometry->boundingBox() )
-        return false;
-
       // avoid calling geos for trivial point case
       if ( QgsWkbTypes::flatType( d->geometry->wkbType() ) == Qgis::WkbType::Point && QgsWkbTypes::flatType( g.d->geometry->wkbType() ) == Qgis::WkbType::Point )
         return *d->geometry == *g.d->geometry;
+
+      //  another nice fast check upfront -- if the bounding boxes aren't equal, the geometries themselves can't be equal!
+      if ( d->geometry->boundingBox() != g.d->geometry->boundingBox() )
+        return false;
 
       QgsGeos geos( d->geometry.get() );
       // fuzzy check call, with near zero epsilon, will behave as an exact comparison
@@ -3749,6 +3780,10 @@ bool QgsGeometry::isExactlyEqual( const QgsGeometry &g, Qgis::GeometryBackend ba
 
     case Qgis::GeometryBackend::QGIS:
     {
+      //  another nice fast check upfront -- if the bounding boxes aren't equal, the geometries themselves can't be equal!
+      if ( ( !d->geometry->is3D() && d->geometry->boundingBox() != g.d->geometry->boundingBox() ) || ( d->geometry->is3D() && d->geometry->boundingBox3D() != g.d->geometry->boundingBox3D() ) )
+        return false;
+
       // slower check - actually test the geometries
       return *d->geometry == *g.d->geometry;
     }
@@ -3771,18 +3806,14 @@ bool QgsGeometry::isTopologicallyEqual( const QgsGeometry &g, Qgis::GeometryBack
   if ( type() != g.type() )
     return false;
 
-  //  another nice fast check upfront -- if the bounding boxes aren't equal, the geometries themselves can't be equal!
-  if ( d->geometry->boundingBox() != g.d->geometry->boundingBox() )
-    return false;
-
   mLastError.clear();
   switch ( backend )
   {
     case Qgis::GeometryBackend::GEOS:
     {
-      // avoid calling geos for trivial point case
-      if ( QgsWkbTypes::flatType( d->geometry->wkbType() ) == Qgis::WkbType::Point && QgsWkbTypes::flatType( g.d->geometry->wkbType() ) == Qgis::WkbType::Point )
-        return *d->geometry == *g.d->geometry;
+      //  another nice fast check upfront -- if the bounding boxes aren't equal, the geometries themselves can't be equal!
+      if ( d->geometry->boundingBox() != g.d->geometry->boundingBox() )
+        return false;
 
       QgsGeos geos( d->geometry.get() );
       return geos.isEqual( g.d->geometry.get(), &mLastError );
