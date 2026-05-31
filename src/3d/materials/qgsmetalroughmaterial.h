@@ -16,6 +16,7 @@
 #ifndef QGSMETALROUGHMATERIAL_H
 #define QGSMETALROUGHMATERIAL_H
 
+#include "qgis.h"
 #include "qgis_3d.h"
 #include "qgsmaterial.h"
 
@@ -96,8 +97,20 @@ class _3D_EXPORT QgsMetalRoughMaterial : public QgsMaterial
      */
     void setEmissionTexture( Qt3DRender::QAbstractTexture *emission );
 
+    /**
+     * Sets the solid emissive \a color.
+     */
+    void setEmissionColor( const QColor &color );
+
     //! Sets the emission strength factor
     void setEmissionFactor( double factor );
+
+    /**
+     * Enables or disables instanced point rendering mode.
+     * When \a enabled is TRUE the material uses the instanced vertex shader.
+     * \a flags controls which per-instance attributes (scale, rotation) are active.
+     */
+    void setInstancingEnabled( bool enabled, Qgis::InstancedMaterialFlags flags );
 
     void setTextureScale( float textureScale );
     void setTextureRotation( float textureRotation );
@@ -105,10 +118,17 @@ class _3D_EXPORT QgsMetalRoughMaterial : public QgsMaterial
 
     void setOpacity( float opacity );
 
+    /**
+     * Switches between data-defined (per-vertex attribute) and uniform color mode.
+     * When \a enabled is TRUE, the metalroughDataDefined.vert shader is used and
+     * the DATA_DEFINED define is injected into the fragment shader.
+     */
+    void setDataDefinedEnabled( bool enabled );
+
   private:
     void init();
 
-    void updateFragmentShader();
+    void updateShaders();
 
     Qt3DRender::QParameter *mBaseColorParameter = nullptr;
     Qt3DRender::QParameter *mMetalnessParameter = nullptr;
@@ -121,6 +141,7 @@ class _3D_EXPORT QgsMetalRoughMaterial : public QgsMaterial
     Qt3DRender::QParameter *mHeightMapParameter = nullptr;
     Qt3DRender::QParameter *mParallaxScaleParameter = nullptr;
     Qt3DRender::QParameter *mEmissionMapParameter = nullptr;
+    Qt3DRender::QParameter *mEmissiveColorParameter = nullptr;
     Qt3DRender::QParameter *mEmissionFactorParameter = nullptr;
     Qt3DRender::QParameter *mTextureScaleParameter = nullptr;
     Qt3DRender::QParameter *mTextureRotationParameter = nullptr;
@@ -138,6 +159,10 @@ class _3D_EXPORT QgsMetalRoughMaterial : public QgsMaterial
     bool mUsingHeightMap = false;
     bool mUsingEmissionMap = false;
     bool mFlatShading = false;
+    bool mInstanced = false;
+    Qgis::InstancedMaterialFlags mInstanceFlags;
+
+    bool mDataDefinedEnabled = false;
 
     friend class TestQgsGltf3DUtils;
 };
