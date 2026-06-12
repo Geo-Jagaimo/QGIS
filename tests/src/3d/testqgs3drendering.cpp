@@ -62,6 +62,7 @@
 #include "qgssimplelinematerialsettings.h"
 #include "qgssinglebandpseudocolorrenderer.h"
 #include "qgssinglesymbolrenderer.h"
+#include "qgssunlightsettings.h"
 #include "qgssymbol.h"
 #include "qgssymbollayer.h"
 #include "qgstest.h"
@@ -130,6 +131,8 @@ class TestQgs3DRendering : public QgsTest
     void testInstancedRenderingHighlighting();
     void testModelPointRenderingHighlighting();
     void testTiledSceneInstanced();
+    void testSunLightDawn();
+    void testSunLightDusk();
 
   private:
     QImage convertDepthImageToGrayscaleImage( const QImage &depthImage );
@@ -288,9 +291,9 @@ void TestQgs3DRendering::testLights()
   QCOMPARE( lightSourceChangedSpy.size(), 1 );
 
   // different light settings
-  QgsDirectionalLightSettings *dsLight = new QgsDirectionalLightSettings();
-  dsLight->setColor( QColor( 255, 0, 0 ) );
-  map.setLightSources( { dsLight } );
+  QgsDirectionalLightSettings dsLight;
+  dsLight.setColor( QColor( 255, 0, 0 ) );
+  map.setLightSources( { dsLight.clone() } );
   QCOMPARE( lightSourceChangedSpy.size(), 2 );
   // different light type
   auto pointLight = std::make_unique<QgsPointLightSettings>();
@@ -298,11 +301,11 @@ void TestQgs3DRendering::testLights()
   map.setLightSources( { pointLight->clone() } );
   QCOMPARE( lightSourceChangedSpy.size(), 3 );
   // different number of lights
-  map.setLightSources( { pointLight->clone(), new QgsDirectionalLightSettings() } );
+  map.setLightSources( { pointLight->clone(), dsLight.clone() } );
   QCOMPARE( lightSourceChangedSpy.size(), 4 );
 
   // a mix of types, but the same settings. Should be no new signals
-  map.setLightSources( { pointLight->clone(), new QgsDirectionalLightSettings() } );
+  map.setLightSources( { pointLight->clone(), dsLight.clone() } );
   QCOMPARE( lightSourceChangedSpy.size(), 4 );
 }
 
@@ -2309,13 +2312,13 @@ void TestQgs3DRendering::testDebugMap()
   mapSettings.setPathResolver( project.pathResolver() );
   mapSettings.setMapThemeCollection( project.mapThemeCollection() );
 
-  QgsDirectionalLightSettings defaultPointLight;
-  mapSettings.setLightSources( { defaultPointLight.clone() } );
+  QgsDirectionalLightSettings defaultLight;
+  mapSettings.setLightSources( { defaultLight.clone() } );
   mapSettings.setOutputDpi( 92 );
 
   QgsShadowSettings shadowSettings = mapSettings.shadowSettings();
   shadowSettings.setRenderShadows( true );
-  shadowSettings.setSelectedDirectionalLight( 0 );
+  shadowSettings.setLightSource( defaultLight.id() );
   shadowSettings.setMaximumShadowRenderingDistance( 2500 );
   shadowSettings.setShadowQuality( Qgis::ShadowQuality::High );
   mapSettings.setShadowSettings( shadowSettings );
@@ -2710,6 +2713,83 @@ void TestQgs3DRendering::testTiledSceneInstanced()
   delete map;
 
   QGSVERIFYIMAGECHECK( "tiled_scene_instanced", "tiled_scene_instanced", img, QString(), 40, QSize( 0, 0 ), 2 );
+}
+
+void TestQgs3DRendering::testSunLightDawn()
+{
+  const QgsRectangle fullExtent = mLayerDtm->extent();
+
+  Qgs3DMapSettings *map = new Qgs3DMapSettings;
+  map->setCrs( mProject->crs() );
+  map->setExtent( fullExtent );
+  map->setLayers( QList<QgsMapLayer *>() << mLayerBuildings );
+  map->setBackgroundColor( QColor( 255, 255, 255 ) );
+  QgsSunLightSettings sun;
+  sun.setIntensity( 1.0 );
+  sun.setSunTime( QDateTime( QDate( 2020, 6, 1 ), QTime( 8, 0, 0 ), QTimeZone( 3600 ) ) );
+  map->setLightSources( { sun.clone() } );
+
+  QgsShadowSettings shadow;
+  shadow.setLightSource( sun.id() );
+  shadow.setRenderShadows( true );
+  map->setShadowSettings( shadow );
+
+  QgsFlatTerrainGenerator *flatTerrain = new QgsFlatTerrainGenerator;
+  flatTerrain->setCrs( map->crs(), map->transformContext() );
+  map->setTerrainGenerator( flatTerrain );
+
+  QgsOffscreen3DEngine engine;
+  Qgs3DMapScene *scene = new Qgs3DMapScene( *map, &engine );
+  engine.setRootEntity( scene );
+
+  scene->cameraController()->setLookingAtPoint( QgsVector3D( 0, -250, 0 ), 200, 45, 180 );
+
+  // When running the test on Travis, it would initially return empty rendered image.
+  // Capturing the initial image and throwing it away fixes that. Hopefully we will
+  // find a better fix in the future.
+  Qgs3DUtils::captureSceneImage( engine, scene );
+  QImage img = Qgs3DUtils::captureSceneImage( engine, scene );
+
+  QGSVERIFYIMAGECHECK( "sun_light", "sun_light", img, QString(), 40, QSize( 0, 0 ), 2 );
+}
+
+void TestQgs3DRendering::testSunLightDusk()
+{
+  const QgsRectangle fullExtent = mLayerDtm->extent();
+
+  Qgs3DMapSettings *map = new Qgs3DMapSettings;
+  map->setCrs( mProject->crs() );
+  map->setExtent( fullExtent );
+  map->setLayers( QList<QgsMapLayer *>() << mLayerBuildings );
+  map->setBackgroundColor( QColor( 255, 255, 255 ) );
+
+  QgsSunLightSettings sun;
+  sun.setIntensity( 1.0 );
+  sun.setSunTime( QDateTime( QDate( 2020, 6, 1 ), QTime( 17, 0, 0 ), QTimeZone( 3600 ) ) );
+  map->setLightSources( { sun.clone() } );
+
+  QgsShadowSettings shadow;
+  shadow.setLightSource( sun.id() );
+  shadow.setRenderShadows( true );
+  map->setShadowSettings( shadow );
+
+  QgsFlatTerrainGenerator *flatTerrain = new QgsFlatTerrainGenerator;
+  flatTerrain->setCrs( map->crs(), map->transformContext() );
+  map->setTerrainGenerator( flatTerrain );
+
+  QgsOffscreen3DEngine engine;
+  Qgs3DMapScene *scene = new Qgs3DMapScene( *map, &engine );
+  engine.setRootEntity( scene );
+
+  scene->cameraController()->setLookingAtPoint( QgsVector3D( 0, -250, 0 ), 200, 45, 180 );
+
+  // When running the test on Travis, it would initially return empty rendered image.
+  // Capturing the initial image and throwing it away fixes that. Hopefully we will
+  // find a better fix in the future.
+  Qgs3DUtils::captureSceneImage( engine, scene );
+  QImage img = Qgs3DUtils::captureSceneImage( engine, scene );
+
+  QGSVERIFYIMAGECHECK( "sun_light_dusk", "sun_light_dusk", img, QString(), 40, QSize( 0, 0 ), 2 );
 }
 
 QGSTEST_MAIN( TestQgs3DRendering )

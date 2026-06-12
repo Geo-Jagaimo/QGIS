@@ -2413,6 +2413,18 @@ The development version
     typedef QFlags<Qgis::PlotToolFlag> PlotToolFlags;
 
 
+    enum class Map3DDebugFlag /BaseType=IntFlag/
+    {
+      ShowTerrainBoundingBoxes,
+      ShowTerrainTileInfo,
+      ShowCameraViewCenter,
+      ShowCameraRotationCenter,
+      ShowLightSourceOrigins,
+      ShowFPS,
+      ShowDebugPanel,
+    };
+    typedef QFlags<Qgis::Map3DDebugFlag> Map3DDebugFlags;
+
 
     enum class Point3DShape /BaseType=IntEnum/
     {
@@ -2469,6 +2481,7 @@ The development version
     {
       Point,
       Directional,
+      Sun,
     };
 
     enum class Map3DBackgroundType /BaseType=IntEnum/
@@ -2505,6 +2518,12 @@ The development version
       Never,
       WhenDragging,
       Always,
+    };
+
+    enum class ToneMappingMethod /BaseType=IntEnum/
+    {
+      Clamp,
+      Aces,
     };
 
     enum class Export3DSceneFormat /BaseType=IntEnum/
@@ -4137,6 +4156,8 @@ QFlags<Qgis::ArcGisRestServiceCapability> operator|(Qgis::ArcGisRestServiceCapab
 
 QFlags<Qgis::InstancedMaterialFlag> operator|(Qgis::InstancedMaterialFlag f1, QFlags<Qgis::InstancedMaterialFlag> f2);
 
+QFlags<Qgis::Map3DDebugFlag> operator|(Qgis::Map3DDebugFlag f1, QFlags<Qgis::Map3DDebugFlag> f2);
+
 
 
 
@@ -4173,6 +4194,30 @@ Compare two doubles (but allow some difference)
 :param a: first double
 :param b: second double
 :param epsilon: maximum difference allowable between doubles
+%End
+
+bool qgsDoubleLessThanOrNear( double a, double b, double epsilon = 4 * DBL_EPSILON );
+%Docstring
+Compare two doubles to see if one is less than the other or very near to
+the other.
+
+:param a: first double
+:param b: second double
+:param epsilon: maximum tolerance when comparing near values
+
+.. versionadded:: 4.2
+%End
+
+bool qgsDoubleGreaterThanOrNear( double a, double b, double epsilon = 4 * DBL_EPSILON );
+%Docstring
+Compare two doubles to see if one is greater than the other or very near
+to the other.
+
+:param a: first double
+:param b: second double
+:param epsilon: maximum tolerance when comparing near values
+
+.. versionadded:: 4.2
 %End
 
 bool qgsFloatNear( float a, float b, float epsilon = 4 * FLT_EPSILON );
