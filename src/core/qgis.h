@@ -549,6 +549,7 @@ int QgisEvent = QEvent::User + 1;
       ReloadData = 1 << 26, //!< Provider is able to force reload data
       FeatureSymbology = 1 << 27, //!< Provider is able retrieve embedded symbology associated with individual features \since QGIS 3.20
       CacheData = 1 << 28, //!< Provider caches source data and should force provider data reloads when dependent layers are committed \since QGIS 4.2
+      ReadFieldDomains = 1 << 29, //!< Provider can read field domains and their properties \since QGIS 4.2
       EditingCapabilities = AddFeatures | DeleteFeatures | ChangeAttributeValues | ChangeGeometries | AddAttributes | DeleteAttributes | RenameAttributes, //!< Bitmask of all editing capabilities
     };
     Q_ENUM( VectorProviderCapability )
@@ -4485,13 +4486,21 @@ int QgisEvent = QEvent::User + 1;
      *
      * \since QGIS 3.30
      */
-    enum class VerticalAxisInversion : int
+    enum class VerticalAxisInversion : int SIP_ENUM_BASETYPE( IntFlag )
     {
-      Never,        //!< Never invert vertical axis movements
-      WhenDragging, //!< Invert vertical axis movements when dragging in first person modes
-      Always,       //!< Always invert vertical axis movements
+      WhenRotatingDragging = 1 << 0, //!< When rotating camera around self with mouse captured \since QGIS 4.2
+      WhenRotatingCaptured = 1 << 1, //!< When rotating camera around self with mouse button pressed \since QGIS 4.2
+      WhenPivoting = 1 << 2,         //!< When pivoting camera around point in terrain \since QGIS 4.2
+
+      // Legacy aliases for old flying-only enum:
+
+      Never = WhenRotatingDragging | WhenRotatingCaptured | WhenPivoting, //!< Never invert vertical axis movements \deprecated QGIS 4.2
+      WhenDragging = WhenRotatingCaptured | WhenPivoting,                 //!< Invert vertical axis movements when dragging in first person modes \deprecated QGIS 4.2
+      Always = WhenPivoting,                                              //!< Always invert vertical axis movements \deprecated QGIS 4.2
     };
     Q_ENUM( VerticalAxisInversion )
+    Q_DECLARE_FLAGS( VerticalAxisInversionFlags, VerticalAxisInversion )
+    Q_FLAG( VerticalAxisInversionFlags )
 
     /**
      * Defines the method used to map High Dynamic Range (HDR) scene colors
@@ -6562,6 +6571,40 @@ int QgisEvent = QEvent::User + 1;
     Q_FLAG( RasterBandStatistics )
 
     /**
+     * OGC SensorThings API versions.
+     *
+     * \since QGIS 4.2
+     */
+    enum class SensorThingsVersion : int
+    {
+        Version1_1, //!< 1.1
+        Version2_0, //!< 2.0
+    };
+    Q_ENUM( SensorThingsVersion );
+
+    /**
+     * OGC SensorThings extensions.
+     *
+     * \since QGIS 4.2
+     */
+    enum class SensorThingsExtension : int SIP_ENUM_BASETYPE( IntFlag )
+    {
+      MultiDatastream = 1 << 0,                          //!< MultiDatastream extension
+      SensingExtensionObservationsMeasurements = 1 << 1, //!< Sensing Extension (Observations & Measurements)
+      SensingExtensionSampling = 1 << 2,                 //!< Sensing Extension (Sampling)
+      SensingExtensionRelations = 1 << 3,                //!< Sensing Extension (Relations)
+    };
+    Q_ENUM( SensorThingsExtension );
+
+    /**
+     * OGC SensorThings extensions.
+     *
+     * \since QGIS 4.2
+     */
+    Q_DECLARE_FLAGS( SensorThingsExtensions, SensorThingsExtension )
+    Q_FLAG( SensorThingsExtensions )
+
+    /**
      * OGC SensorThings API entity types.
      *
      * \since QGIS 3.36
@@ -6570,14 +6613,29 @@ int QgisEvent = QEvent::User + 1;
     {
       Invalid, //!< An invalid/unknown entity
       Thing, //!< A Thing is an object of the physical world (physical things) or the information world (virtual things) that is capable of being identified and integrated into communication networks
-      Location, //!< A Location entity locates the Thing or the Things it associated with. A Thing’s Location entity is defined as the last known location of the Thing
+      Location,           //!< A Location entity locates the Thing or the Things it associated with. A Thing’s Location entity is defined as the last known location of the Thing
       HistoricalLocation, //!< A Thing’s HistoricalLocation entity set provides the times of the current (i.e., last known) and previous locations of the Thing
-      Datastream, //!< A Datastream groups a collection of Observations measuring the same ObservedProperty and produced by the same Sensor
-      Sensor, //!< A Sensor is an instrument that observes a property or phenomenon with the goal of producing an estimate of the value of the property
-      ObservedProperty, //!< An ObservedProperty specifies the phenomenon of an Observation
-      Observation, //!< An Observation is the act of measuring or otherwise determining the value of a property
+      Datastream,         //!< A Datastream groups a collection of Observations measuring the same ObservedProperty and produced by the same Sensor
+      Sensor,             //!< A Sensor is an instrument that observes a property or phenomenon with the goal of producing an estimate of the value of the property
+      ObservedProperty,   //!< An ObservedProperty specifies the phenomenon of an Observation
+      Observation,        //!< An Observation is the act of measuring or otherwise determining the value of a property
       FeatureOfInterest, //!< In the context of the Internet of Things, many Observations’ FeatureOfInterest can be the Location of the Thing. For example, the FeatureOfInterest of a wifi-connect thermostat can be the Location of the thermostat (i.e., the living room where the thermostat is located in). In the case of remote sensing, the FeatureOfInterest can be the geographical area or volume that is being sensed
       MultiDatastream, //!< A MultiDatastream groups a collection of Observations and the Observations in a MultiDatastream have a complex result type. Implemented in the SensorThings version 1.1 "MultiDatastream extension". \since QGIS 3.38
+      // version 2.0
+      Feature, //!< A Feature is an abstraction of real-world phenomena. It acts as an independent entity that can represent the proximate feature (e.g., a physical sample) or the ultimate real-world object being observed, replacing the v1.1 FeatureOfInterest. \since QGIS 4.2
+      FeatureType, //!< A FeatureType provides the classification and schema definition for a Feature, describing the common properties and structure expected for a specific category of Features. \since QGIS 4.2
+      Deployment, //!< A Deployment is the association of a Sensor to a Thing that hosts this Sensor, and to the Datastreams that contain the Observations produced by the Sensor while it is/was hosted on this Thing. Implemented in the "Sensing Extension (Observations & Measurements)". \since QGIS 4.2
+      ObservingProcedure, //!< An Observing Procedure. Implemented in the "Sensing Extension (Observations & Measurements)". \since QGIS 4.2
+      Sampling, //!< The Sampling is the act of taking one or more Samples. The Sampling takes Samples from a SampledFeature. The Sampling is executed by a Sampler, following a SamplingProcedure. The Sampling can be associated with a Thing. Implemented in the "Sampling Extension". \since QGIS 4.2
+      SamplingProcedure, //!< The SamplingProcedure describes the method, or procedure, that the Sampler uses to create Samples. A Sampler must implement at least one SamplingProcedure, but can implement many. A Sample is created using one SamplingProcedure, though this SamplingProcedure may not be known. Implemented in the "Sampling Extension". \since QGIS 4.2
+      Sampler, //!< The Sampler describes the machine, device, human or other entity that executed the sampling procedure to produce a sample. Implemented in the "Sampling Extension". \since QGIS 4.2
+      PreparationStep, //!< When applying a PreparationProcdedure to a Sample, the process is recorded in individual PreparationSteps. For a simple, short PreparationProcedure, a single PreparationStep can be sufficient to record the fact that the preparation procedure was applied to the Sample, and the time at which the procedure was applied. For a complex procedure, that takes a long time, many PreparationSteps may be recorded. Implemented in the "Sampling Extension". \since QGIS 4.2
+      PreparationProcedure, //!< After a sample is taken, a preparation procedure can be applied to it. The difference with the sampling procedure is that the preparation procedure does not result in one or more new samples, but that an existing sample is modified. The PreparationProcedure stores the generic procedure that can be applied to many samples. Implemented in the "Sampling Extension". \since QGIS 4.2
+      ThingRelation, //!< A ThingRelation Entity relates a source Thing to a target Thing, or to an external resource, using a RelationRole. Implemented in the "Relations Extension". \since QGIS 4.2
+      RelationRole,  //!< The RelationRole Entity holds a name and definition for both directions of the relation. Implemented in the "Relations Extension". \since QGIS 4.2
+      FeatureRelation, //!< A FeatureRelation Entity relates a source Feature to a target Feature, or to an external resource, using a RelationRole. Implemented in the "Relations Extension". \since QGIS 4.2
+      DatastreamRelation, //!< A DatastreamRelation Entity relates a source Datastream to a target Datastream, or to an external resource, using a RelationRole. Implemented in the "Relations Extension". \since QGIS 4.2
+      ObservationRelation, //!< A ObservationRelation Entity relates a source Observation to a target Observation, or to an external resource, using a RelationRole. Implemented in the "Relations Extension". \since QGIS 4.2
     };
     Q_ENUM( SensorThingsEntity )
 
@@ -7040,6 +7098,7 @@ Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::LoadStyleFlags )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::MapSettingsFlags )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::MarkerLinePlacements )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::PlotToolFlags )
+Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::VerticalAxisInversionFlags )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::ProfileGeneratorFlags )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::ProjectCapabilities )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::ProjectReadFlags )
@@ -7106,6 +7165,7 @@ Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::SymbolConverterCapabilities )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::ArcGisRestServiceCapabilities )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::InstancedMaterialFlags )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::Map3DDebugFlags )
+Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::SensorThingsExtensions )
 Q_DECLARE_METATYPE( Qgis::LayoutRenderFlags )
 Q_DECLARE_METATYPE( QTimeZone )
 
