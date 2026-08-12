@@ -107,6 +107,15 @@ class GUI_EXPORT QgsMaterialWidget : public QgsPanelWidget, private Ui::Material
      */
     void setType( const QString &type );
 
+    void setDockMode( bool dockMode ) override;
+
+  public slots:
+
+    /**
+     * Sets whether the material preview widget should be visible.
+     */
+    void setPreviewVisible( bool visible );
+
   signals:
 
     /**
@@ -121,6 +130,7 @@ class GUI_EXPORT QgsMaterialWidget : public QgsPanelWidget, private Ui::Material
   private:
     void updateMaterialWidget();
     void rebuildAvailableTypes();
+    bool mPreviewVisible = false;
     QPointer< QgsVectorLayer > mLayer;
 
     std::unique_ptr<QgsAbstractMaterialSettings> mCurrentSettings;

@@ -39,7 +39,6 @@
 #include <Qt3DCore/QAttribute>
 #include <Qt3DCore/QBuffer>
 #include <Qt3DCore/QTransform>
-#include <Qt3DExtras/QPhongMaterial>
 #include <Qt3DRender/QGeometryRenderer>
 
 using namespace Qt::StringLiterals;
@@ -92,17 +91,15 @@ bool QgsBufferedLine3DSymbolHandler::prepare( const Qgs3DRenderContext &, QSet<Q
   mChunkOrigin.setZ( 0. ); // set the chunk origin to the bottom of the box, as the tessellator currently always considers origin z to be zero
   mChunkExtent = chunkExtent;
 
-  const QgsPhongTexturedMaterialSettings *texturedMaterialSettings = dynamic_cast<const QgsPhongTexturedMaterialSettings *>( mSymbol->materialSettings() );
-
-  const float textureRotation = texturedMaterialSettings ? static_cast<float>( texturedMaterialSettings->textureRotation() ) : 0;
-  const bool requiresTextureCoordinates = texturedMaterialSettings ? texturedMaterialSettings->requiresTextureCoordinates() : false;
+  const bool requiresTextureCoordinates = mSymbol->materialSettings() && mSymbol->materialSettings()->requiresTextureCoordinates();
+  const bool requiresTangents = mSymbol->materialSettings() && mSymbol->materialSettings()->requiresTangents();
 
   auto lineDataNormalTessellator = std::make_unique<QgsTessellator>();
   lineDataNormalTessellator->setOrigin( mChunkOrigin );
   lineDataNormalTessellator->setAddNormals( true );
   lineDataNormalTessellator->setAddTextureUVs( requiresTextureCoordinates );
+  lineDataNormalTessellator->setAddTangents( requiresTangents );
   lineDataNormalTessellator->setExtrusionFaces( Qgis::ExtrusionFace::Walls | Qgis::ExtrusionFace::Roof );
-  lineDataNormalTessellator->setTextureRotation( textureRotation );
   lineDataNormalTessellator->setTriangulationAlgorithm( Qgis::TriangulationAlgorithm::Earcut );
 
   mLineDataNormal.tessellator = std::move( lineDataNormalTessellator );
@@ -111,14 +108,11 @@ bool QgsBufferedLine3DSymbolHandler::prepare( const Qgs3DRenderContext &, QSet<Q
   lineDataSelectedTessellator->setOrigin( mChunkOrigin );
   lineDataSelectedTessellator->setAddNormals( true );
   lineDataSelectedTessellator->setAddTextureUVs( requiresTextureCoordinates );
+  lineDataSelectedTessellator->setAddTangents( requiresTangents );
   lineDataSelectedTessellator->setExtrusionFaces( Qgis::ExtrusionFace::Walls | Qgis::ExtrusionFace::Roof );
-  lineDataSelectedTessellator->setTextureRotation( textureRotation );
   lineDataSelectedTessellator->setTriangulationAlgorithm( Qgis::TriangulationAlgorithm::Earcut );
 
   mLineDataSelected.tessellator = std::move( lineDataSelectedTessellator );
-
-  mLineDataNormal.tessellator->setOutputZUp( true );
-  mLineDataSelected.tessellator->setOutputZUp( true );
 
   return true;
 }
@@ -216,9 +210,8 @@ void QgsBufferedLine3DSymbolHandler::makeEntity( Qt3DCore::QEntity *parent, cons
   if ( lineData.tessellator->dataVerticesCount() == 0 )
     return; // nothing to show - no need to create the entity
 
-  QgsMaterialContext materialContext;
+  QgsMaterialContext materialContext = QgsMaterialContext::fromRenderContext( context );
   materialContext.setIsSelected( selected );
-  materialContext.setSelectionColor( context.selectionColor() );
   materialContext.setIsHighlighted( mHighlightingEnabled );
 
   QgsMaterial *material = Qgs3D::toMaterial( mSymbol->materialSettings(), Qgis::MaterialRenderingTechnique::Triangles, materialContext );
@@ -229,9 +222,9 @@ void QgsBufferedLine3DSymbolHandler::makeEntity( Qt3DCore::QEntity *parent, cons
   const int vertexCount = vertexBuffer.count() / lineData.tessellator->stride();
   const size_t indexCount = lineData.tessellator->dataVerticesCount();
 
-  const QgsPhongTexturedMaterialSettings *texturedMaterialSettings = dynamic_cast<const QgsPhongTexturedMaterialSettings *>( mSymbol->materialSettings() );
-
-  QgsTessellatedPolygonGeometry *geometry = new QgsTessellatedPolygonGeometry( true, false, false, texturedMaterialSettings ? texturedMaterialSettings->requiresTextureCoordinates() : false );
+  QgsTessellatedPolygonGeometry *geometry = new QgsTessellatedPolygonGeometry(
+    true, false, false, mSymbol->materialSettings() && mSymbol->materialSettings()->requiresTextureCoordinates(), mSymbol->materialSettings() && mSymbol->materialSettings()->requiresTangents()
+  );
   geometry->setVertexBufferData( vertexBuffer, vertexCount, lineData.triangleIndexFids, lineData.triangleIndexStartingIndices );
   geometry->setIndexBufferData( indexBuffer, indexCount );
 
@@ -274,7 +267,6 @@ class QgsThickLine3DSymbolHandler : public QgsFeature3DHandler
 
   private:
     void makeEntity( Qt3DCore::QEntity *parent, const Qgs3DRenderContext &context, QgsLineVertexData &lineVertexData, bool selected );
-    Qt3DExtras::QPhongMaterial *material( const QgsLine3DSymbol &symbol ) const;
     void processMaterialDatadefined( uint verticesCount, const QgsExpressionContext &context, QgsLineVertexData &lineVertexData );
 
     // input specific for this class
@@ -374,9 +366,8 @@ void QgsThickLine3DSymbolHandler::makeEntity( Qt3DCore::QEntity *parent, const Q
     return;
 
   // material (only ambient color is used for the color)
-  QgsMaterialContext materialContext;
+  QgsMaterialContext materialContext = QgsMaterialContext::fromRenderContext( context );
   materialContext.setIsSelected( selected );
-  materialContext.setSelectionColor( context.selectionColor() );
 
   QgsMaterial *material = Qgs3D::toMaterial( mSymbol->materialSettings(), Qgis::MaterialRenderingTechnique::Lines, materialContext );
   if ( !material )
@@ -411,7 +402,10 @@ void QgsThickLine3DSymbolHandler::makeEntity( Qt3DCore::QEntity *parent, const Q
 
   if ( mSymbol->materialSettings()->dataDefinedProperties().isActive( QgsAbstractMaterialSettings::Property::Ambient ) )
   {
-    Qgs3D::applyMaterialDataDefinedToGeometry( mSymbol->materialSettings(), geometry, lineVertexData.vertices.size(), lineVertexData.materialDataDefined );
+    if ( const QgsAbstractMaterial3DHandler *handler = Qgs3D::handlerForMaterialSettings( mSymbol->materialSettings() ) )
+    {
+      handler->applyDataDefinedToGeometry( mSymbol->materialSettings(), geometry, lineVertexData.vertices.size(), lineVertexData.materialDataDefined );
+    }
   }
 
   renderer->setGeometry( geometry );
@@ -433,7 +427,11 @@ void QgsThickLine3DSymbolHandler::makeEntity( Qt3DCore::QEntity *parent, const Q
 
 void QgsThickLine3DSymbolHandler::processMaterialDatadefined( uint verticesCount, const QgsExpressionContext &context, QgsLineVertexData &lineVertexData )
 {
-  const QByteArray bytes = Qgs3D::materialDataDefinedVertexColorsAsByte( mSymbol->materialSettings(), context );
+  QByteArray bytes;
+  if ( const QgsAbstractMaterial3DHandler *handler = Qgs3D::handlerForMaterialSettings( mSymbol->materialSettings() ) )
+  {
+    bytes = handler->dataDefinedVertexColorsAsByte( mSymbol->materialSettings(), context );
+  }
   lineVertexData.materialDataDefined.append( bytes.repeated( static_cast<int>( verticesCount ) ) );
 }
 
@@ -444,7 +442,7 @@ void QgsThickLine3DSymbolHandler::processMaterialDatadefined( uint verticesCount
 namespace Qgs3DSymbolImpl
 {
 
-  QgsFeature3DHandler *handlerForLine3DSymbol( QgsVectorLayer *layer, const QgsAbstract3DSymbol *symbol )
+  QgsFeature3DHandler *handlerForLine3DSymbol( const QgsVectorLayer *layer, const QgsAbstract3DSymbol *symbol )
   {
     const QgsLine3DSymbol *lineSymbol = dynamic_cast<const QgsLine3DSymbol *>( symbol );
     if ( !lineSymbol )

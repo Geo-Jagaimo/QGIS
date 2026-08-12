@@ -71,6 +71,97 @@ A value of -1 indicates that no precision reduction will be applied.
 
 };
 
+
+class QgsCoverageCleanParameters
+{
+%Docstring(signature="appended")
+Encapsulates parameters for a coverage cleaning operation.
+
+.. versionadded:: 4.4
+%End
+
+%TypeHeaderCode
+#include "qgsgeometry.h"
+%End
+  public:
+    double snappingDistance() const;
+%Docstring
+Returns the snapping distance.
+
+Snapping to nearby vertices and line segment snapping is used to improve
+noding robustness and eliminate small errors in an efficient way.
+
+By default the snapping distance is -1, which means that the clean
+operation uses a very small snapping distance based on the extent of the
+input data.
+
+The snapping distance may be specified explicitly.
+
+This can reduce the number of overlaps and gaps that need to be merged,
+and reduce the risk of spikes formed by merging gaps. However, a large
+snapping distance may introduce undesirable data alteration.
+
+A distance of zero prevents snapping from being used.
+
+.. seealso:: :py:func:`setSnappingDistance`
+%End
+
+    void setSnappingDistance( double distance );
+%Docstring
+Sets the snapping ``distance``.
+
+.. seealso:: :py:func:`snappingDistance`
+%End
+
+    double maximumGapWidth() const;
+%Docstring
+Returns the maximum gap width.
+
+Gaps which are smaller than this distance are merged with an adjacent
+polygon.
+
+Polygon width is determined as twice the radius of the maximum inscribed
+circle of the gap polygon.
+
+Gaps are merged with the adjacent polygon depending on
+:py:func:`~QgsCoverageCleanParameters.overlapMergeStrategy`.
+
+Empty holes in input polygons are treated as gaps, and may be filled in.
+
+Gaps which are not fully enclosed ("inlets") are not removed.
+
+The width of a gap is twice the radius of the Maximum Inscribed Circle
+in the gap polygon,
+
+A width of zero prevents gaps from being merged.
+
+.. seealso:: :py:func:`setMaximumGapWidth`
+%End
+
+    void setMaximumGapWidth( double width );
+%Docstring
+Sets the maximum gap ``width``.
+
+.. seealso:: :py:func:`maximumGapWidth`
+%End
+
+    Qgis::CoverageCleanOverlapMergeStrategy overlapMergeStrategy() const;
+%Docstring
+Returns the overlap merge strategy to use during cleaning.
+
+.. seealso:: :py:func:`setOverlapMergeStrategy`
+%End
+
+    void setOverlapMergeStrategy( Qgis::CoverageCleanOverlapMergeStrategy strategy );
+%Docstring
+Sets the overlap merge ``strategy`` to use during cleaning.
+
+.. seealso:: :py:func:`overlapMergeStrategy`
+%End
+
+};
+
+
 class QgsGeometry
 {
 %Docstring(signature="appended")
@@ -433,8 +524,8 @@ have exactly the same type, component vertices and vertex order.
 
 Implementations:
 
-- GEOS
-- QGIS
+- GEOS: internal implementation uses fuzzy comparison with very low (1e-8) tolerance
+- QGIS: internal implementation uses fuzzy comparison with very low (1e-8) tolerance
 
 The QGIS internal implementation is chosen by default.
 
@@ -478,7 +569,7 @@ The GEOS implementation is chosen by default.
 .. versionadded:: 4.2
 %End
 
-    bool isFuzzyEqual( const QgsGeometry &geometry, double epsilon, Qgis::GeometryBackend backend = Qgis::GeometryBackend::QGIS ) const;
+    bool isFuzzyEqual( const QgsGeometry &geometry, double epsilon = 1e-4, Qgis::GeometryBackend backend = Qgis::GeometryBackend::QGIS ) const;
 %Docstring
 Compares the geometry with another geometry within the tolerance
 ``epsilon`` using the specified ``backend``.
@@ -937,6 +1028,26 @@ LineString with less than 2 vertices), the geometry is cleared instead.
 :return: ``False`` if atVertex does not correspond to a valid vertex on
          this geometry or if the geometry is null, ``True`` if the
          vertex was successfully deleted or the geometry was cleared.
+%End
+
+    bool deleteVertices( const QSet<int> &atVertices );
+%Docstring
+Deletes vertices at the given positions (first number is index 0)
+
+For Point geometries, this clears the geometry. For MultiPoint
+geometries, this removes point geometries at the specified indices. For
+other geometry types, this removes the vertices at the specified
+indices. If after removal of the vertices the geometry would become
+invalid (e.g. a LineString with less than 2 vertices), the geometry is
+cleared instead.
+
+:return: ``False`` if any of the given atVertices does not correspond to
+         a valid vertex on this geometry or if any vertices fail to be
+         deleted
+
+.. seealso:: :py:func:`deleteVertex`
+
+.. versionadded:: 4.2
 %End
 
     bool toggleCircularAtVertex( int atVertex );
@@ -1690,17 +1801,20 @@ Returns ``True`` if the geometry crosses another ``geometry``.
    :py:class:`QgsGeometryEngine` class.
 %End
 
-    QgsGeometry buffer( double distance, int segments ) const;
+    QgsGeometry buffer( double distance, int segments, QgsFeedback* feedback = 0 ) const;
 %Docstring
 Returns a buffer region around this geometry having the given width and
-with a specified number of segments used to approximate curves
+with a specified number of segments used to approximate curves.
+
+The optional ``feedback`` argument allows for early cancellation (since
+QGIS 4.2).
 
 .. seealso:: :py:func:`singleSidedBuffer`
 
 .. seealso:: :py:func:`taperedBuffer`
 %End
 
-    QgsGeometry buffer( double distance, int segments, Qgis::EndCapStyle endCapStyle, Qgis::JoinStyle joinStyle, double miterLimit ) const;
+    QgsGeometry buffer( double distance, int segments, Qgis::EndCapStyle endCapStyle, Qgis::JoinStyle joinStyle, double miterLimit, QgsFeedback* feedback = 0 ) const;
 %Docstring
 Returns a buffer region around the geometry, with additional style
 options.
@@ -1712,6 +1826,8 @@ options.
 :param joinStyle: join style for corners in geometry
 :param miterLimit: limit on the miter ratio used for very sharp corners
                    (JoinStyleMiter only)
+:param feedback: optional feedback object for early cancellation (since
+                 QGIS 4.2).
 
 .. seealso:: :py:func:`singleSidedBuffer`
 
@@ -1794,17 +1910,24 @@ geometry.
 .. versionadded:: 3.2
 %End
 
-    QgsGeometry extendLine( double startDistance, double endDistance ) const;
+    QgsGeometry extendLine( double startDistance, double endDistance, double startDeflection = 0, double endDeflection = 0 ) const;
 %Docstring
 Extends a (multi)line geometry by extrapolating out the start or end of
 the line by a specified distance. Lines are extended using the bearing
 of the first or last segment in the line.
+
+Since QGIS 4.4, the ``startDeflection`` and ``endDeflection`` arguments
+can be used to deflect the start and end extensions by the specified
+angles (specified in degrees clockwise).
 %End
 
-    QgsGeometry simplify( double tolerance ) const;
+    QgsGeometry simplify( double tolerance, QgsFeedback* feedback = 0 ) const;
 %Docstring
 Returns a simplified version of this geometry using a specified
-tolerance value
+``tolerance`` value.
+
+The optional ``feedback`` argument allows for early cancellation (since
+QGIS 4.2).
 %End
 
     QgsGeometry densifyByCount( int extraNodesPerSegment ) const;
@@ -2030,7 +2153,55 @@ early cancellation.
 :raises QgsNotSupportedException: on QGIS builds based on GEOS 3.10 or
                                   earlier.
 
+.. seealso:: :py:func:`concaveHullOfPolygons`
+
 .. versionadded:: 3.28
+%End
+
+    QgsGeometry concaveHullOfPolygons( double lengthRatio, bool allowHoles = false, bool isTight = false, QgsFeedback *feedback = 0 ) const;
+%Docstring
+Constructs a concave hull of a set of polygons, respecting the polygons
+as constraints.
+
+A concave hull is a (possibly) non-convex polygon containing all the
+input polygons.
+
+The computed hull "fills the gap" between the polygons, and does not
+intersect their interior.
+
+A set of polygons has a sequence of hulls of increasing concaveness,
+determined by a numeric target parameter.
+
+The concave hull is constructed by removing the longest outer edges of
+the Delaunay Triangulation of the space between the polygons, until the
+target criterion parameter is reached.
+
+The "Maximum Edge Length" parameter limits the length of the longest
+edge between polygons to be no larger than this value. This can be
+expressed as a ratio between the lengths of the longest and shortest
+edges.
+
+The input geometry must be a valid Polygon or MultiPolygon (i.e. they
+must be non-overlapping).
+
+:param lengthRatio: specifies the Maximum Edge Length as a fraction of
+                    the difference between the longest and shortest edge
+                    lengths between the polygons. This normalizes the
+                    Maximum Edge Length to be scale-free. A value of 1
+                    produces the convex hull; a value of 0 produces the
+                    original polygons.
+:param allowHoles: set to ``True`` to allow the concave hull to contain
+                   holes
+:param isTight: set to ``True`` if the concave hull should follow the
+                outer boundaries of the input polygons
+:param feedback: optional feedback object for early cancellation.
+
+:raises QgsNotSupportedException: on QGIS builds based on GEOS 3.10 or
+                                  earlier.
+
+.. seealso:: :py:func:`concaveHull`
+
+.. versionadded:: 4.2
 %End
 
     QgsGeometry voronoiDiagram( const QgsGeometry &extent = QgsGeometry(), double tolerance = 0.0, bool edgesOnly = false ) const;
@@ -2151,6 +2322,29 @@ geometry collection. All members must be POLYGON or MULTIPOLYGON.
 .. seealso:: :py:func:`validateCoverage`
 
 .. versionadded:: 3.36
+%End
+
+    QgsGeometry cleanCoverage( const QgsCoverageCleanParameters &parameters, QgsFeedback *feedback = 0 ) const;
+%Docstring
+Operates on a coverage (represented as a list of polygonal geometry), to
+fix cases where the geometry does not in fact exactly match.
+
+The input is a collection of polygons, and the output is a collection
+with the same number of cleaned polygons, in the same order as the
+input. Polygons that have collapsed during cleaning will be returned as
+empty polygons.
+
+The optional ``feedback`` argument supports early cancellation of the
+operation.
+
+This method requires a QGIS build based on GEOS 3.14 or later.
+
+:raises QgsNotSupportedException: on QGIS builds based on GEOS 3.13 or
+                                  earlier.
+
+.. seealso:: :py:func:`validateCoverage`
+
+.. versionadded:: 4.4
 %End
 
     QgsGeometry node() const;
@@ -2347,7 +2541,7 @@ The optional ``feedback`` argument allows for early cancellation (since
 QGIS 4.2).
 %End
 
-    QgsGeometry symDifference( const QgsGeometry &geometry, const QgsGeometryParameters &parameters = QgsGeometryParameters() ) const;
+    QgsGeometry symDifference( const QgsGeometry &geometry, const QgsGeometryParameters &parameters = QgsGeometryParameters(), QgsFeedback* feedback = 0 ) const;
 %Docstring
 Returns a geometry representing the points making up this geometry that
 do not make up other.
@@ -2361,6 +2555,9 @@ returned geometry.
 
 Since QGIS 3.28 the optional ``parameters`` argument can be used to
 specify parameters which control the difference results.
+
+The optional ``feedback`` argument allows for early cancellation (since
+QGIS 4.2).
 %End
 
     QgsGeometry extrude( double x, double y );
@@ -2454,7 +2651,21 @@ Exports the geometry to WKT
 
     QString asJson( int precision = 17 ) const;
 %Docstring
-Exports the geometry to a GeoJSON string.
+Exports the geometry to a GeoJSON RFC7946 string.
+
+.. seealso:: :py:func:`asGeoJson` for exporting using other GeoJSON profiles
+%End
+
+    QString asGeoJson( int precision = 17, Qgis::GeoJsonProfile profile = Qgis::GeoJsonProfile::Legacy ) const;
+%Docstring
+Export the geometry to a GeoJSON string, with the given ``precision``
+and following the specified GeoJSON ``profile``. Note: this is identical
+to :py:func:`~QgsGeometry.asJson` when using the Legacy and Rfc7946
+profile, but differs when using other profiles with "CircularString,"
+"CompoundCurve," "CurvePolygon," "MultiCurve," or "MultiSurface"
+geometries.
+
+.. versionadded:: 4.4
 %End
 
 
@@ -3041,6 +3252,8 @@ Validates geometry and produces a list of geometry errors. The
 
 The ``flags`` parameter indicates optional flags which control the type
 of validity checking performed.
+
+:raises QgsNotSupportedException: when method is not supported
 %End
 
     void normalize();

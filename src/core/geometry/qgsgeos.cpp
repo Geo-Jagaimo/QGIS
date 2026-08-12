@@ -2292,6 +2292,30 @@ std::unique_ptr< QgsAbstractGeometry > QgsGeos::concaveHull( double targetPercen
 #endif
 }
 
+std::unique_ptr<QgsAbstractGeometry> QgsGeos::concaveHullOfPolygons( double lengthRatio, bool allowHoles, bool isTight, QString *errorMsg, QgsFeedback *feedback ) const
+{
+#if GEOS_VERSION_MAJOR == 3 && GEOS_VERSION_MINOR < 11
+  ( void ) allowHoles;
+  ( void ) targetPercent;
+  ( void ) errorMsg;
+  throw QgsNotSupportedException( QObject::tr( "Calculating concaveHullOfPolygons requires a QGIS build based on GEOS 3.11 or later" ) );
+#else
+  if ( !mGeos )
+  {
+    return nullptr;
+  }
+
+  try
+  {
+    QgsScopedGeosContextRegisterFeedback interrupt( feedback );
+    geos::unique_ptr concaveHull( GEOSConcaveHullOfPolygons_r( QgsGeosContext::get(), mGeos.get(), lengthRatio, isTight ? 1 : 0, allowHoles ? 1 : 0 ) );
+    std::unique_ptr< QgsAbstractGeometry > concaveHullGeom = fromGeos( concaveHull.get() );
+    return concaveHullGeom;
+  }
+  CATCH_GEOS_WITH_ERRMSG( nullptr )
+#endif
+}
+
 Qgis::CoverageValidityResult QgsGeos::validateCoverage( double gapWidth, std::unique_ptr<QgsAbstractGeometry> *invalidEdges, QString *errorMsg, QgsFeedback *feedback ) const
 {
 #if GEOS_VERSION_MAJOR == 3 && GEOS_VERSION_MINOR < 12
@@ -2381,6 +2405,75 @@ std::unique_ptr<QgsAbstractGeometry> QgsGeos::unionCoverage( QString *errorMsg, 
     return result;
   }
   CATCH_GEOS_WITH_ERRMSG( nullptr )
+}
+
+std::unique_ptr< QgsAbstractGeometry > QgsGeos::cleanCoverage( const QgsCoverageCleanParameters &parameters, QString *errorMsg, QgsFeedback *feedback ) const
+{
+#if GEOS_VERSION_MAJOR == 3 && GEOS_VERSION_MINOR < 14
+  ( void ) parameters;
+  ( void ) errorMsg;
+  ( void ) feedback;
+  throw QgsNotSupportedException( QObject::tr( "Cleaning coverages requires a QGIS build based on GEOS 3.14 or later" ) );
+#else
+  if ( !mGeos )
+  {
+    if ( errorMsg )
+      *errorMsg = u"Input geometry was not set"_s;
+    return nullptr;
+  }
+
+  GEOSCoverageCleanParams *params = nullptr;
+  try
+  {
+    params = GEOSCoverageCleanParams_create_r( QgsGeosContext::get() );
+    if ( parameters.snappingDistance() >= 0 )
+    {
+      GEOSCoverageCleanParams_setSnappingDistance_r( QgsGeosContext::get(), params, parameters.snappingDistance() );
+    }
+    GEOSCoverageCleanParams_setGapMaximumWidth_r( QgsGeosContext::get(), params, parameters.maximumGapWidth() );
+    switch ( parameters.overlapMergeStrategy() )
+    {
+      case Qgis::CoverageCleanOverlapMergeStrategy::LongestBorder:
+        GEOSCoverageCleanParams_setOverlapMergeStrategy_r( QgsGeosContext::get(), params, 0 );
+        break;
+      case Qgis::CoverageCleanOverlapMergeStrategy::MaximumArea:
+        GEOSCoverageCleanParams_setOverlapMergeStrategy_r( QgsGeosContext::get(), params, 1 );
+        break;
+      case Qgis::CoverageCleanOverlapMergeStrategy::MinimumArea:
+        GEOSCoverageCleanParams_setOverlapMergeStrategy_r( QgsGeosContext::get(), params, 2 );
+        break;
+      case Qgis::CoverageCleanOverlapMergeStrategy::MinimumIndex:
+        GEOSCoverageCleanParams_setOverlapMergeStrategy_r( QgsGeosContext::get(), params, 3 );
+        break;
+    }
+
+    QgsScopedGeosContextRegisterFeedback interrupt( feedback );
+    geos::unique_ptr cleaned( GEOSCoverageCleanWithParams_r( QgsGeosContext::get(), mGeos.get(), params ) );
+    GEOSCoverageCleanParams_destroy_r( QgsGeosContext::get(), params );
+
+    std::unique_ptr< QgsAbstractGeometry> cleanedGeom = fromGeos( cleaned.get() );
+
+    return cleanedGeom;
+  }
+  catch ( QgsGeosException &e )
+  {
+    if ( params )
+    {
+      GEOSCoverageCleanParams_destroy_r( QgsGeosContext::get(), params );
+      params = nullptr;
+    }
+
+    if ( errorMsg )
+    {
+      *errorMsg = e.what();
+      if ( errorMsg->startsWith( "InterruptedException"_L1, Qt::CaseInsensitive ) )
+      {
+        errorMsg->clear();
+      }
+    }
+    return nullptr;
+  }
+#endif
 }
 
 bool QgsGeos::isValid( QString *errorMsg, const bool allowSelfTouchingHoles, QgsGeometry *errorLoc, QgsFeedback *feedback ) const

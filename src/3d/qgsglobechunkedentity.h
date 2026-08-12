@@ -33,26 +33,31 @@
 
 
 #include "qgschunkedentity.h"
-
 #include "qgschunkloader.h"
 #include "qgscoordinatetransform.h"
 #include "qgsdistancearea.h"
+#include "qgs3drendercontext.h"
+#include "qgslayerstylewatcher.h"
+#include "qobjectuniqueptr.h"
+
 #include <QImage>
 
 class QgsMapLayer;
 class QgsGlobeMapUpdateJobFactory;
 class QgsTerrainTextureGenerator;
+class QgsLayerStyleWatcher;
 
 class QgsGlobeChunkLoader : public QgsChunkLoader
 {
     Q_OBJECT
   public:
-    QgsGlobeChunkLoader( QgsChunkNode *node, QgsTerrainTextureGenerator *textureGenerator, const QgsCoordinateTransform &globeCrsToLatLon );
+    QgsGlobeChunkLoader( QgsChunkNode *node, const Qgs3DRenderContext &context, QgsTerrainTextureGenerator *textureGenerator, const QgsCoordinateTransform &globeCrsToLatLon );
     void start() override;
 
     Qt3DCore::QEntity *createEntity( Qt3DCore::QEntity *parent ) override;
 
   private:
+    Qgs3DRenderContext mRenderContext;
     QgsTerrainTextureGenerator *mTextureGenerator;
     QgsCoordinateTransform mGlobeCrsToLatLon;
     int mJobId = -1;
@@ -91,7 +96,7 @@ class QgsGlobeChunkLoaderFactory : public QgsChunkLoaderFactory
 
   private:
     Qgs3DMapSettings *mMapSettings = nullptr;
-    QgsTerrainTextureGenerator *mTextureGenerator = nullptr; // owned by the factory
+    std::unique_ptr<QgsTerrainTextureGenerator> mTextureGenerator;
     QgsDistanceArea mDistanceArea;
     QgsCoordinateTransform mGlobeCrsToLatLon;
     double mRadiusX, mRadiusY, mRadiusZ;
@@ -114,16 +119,10 @@ class _3D_EXPORT QgsGlobeEntity : public QgsChunkedEntity
 
   private slots:
     void invalidateMapImages();
-    void onLayersChanged();
-
-  private:
-    void connectToLayersRepaintRequest();
 
   private:
     std::unique_ptr<QgsGlobeMapUpdateJobFactory> mUpdateJobFactory;
-
-    //! layers that are currently being used for map rendering (and thus being watched for renderer updates)
-    QList<QgsMapLayer *> mLayers;
+    QObjectUniquePtr<QgsLayerStyleWatcher> mLayerWatcher = nullptr;
 };
 
 

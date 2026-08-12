@@ -134,7 +134,7 @@ void QgsMapToolModifyAnnotation::cadCanvasMoveEvent( QgsMapMouseEvent *event )
         std::unique_ptr<QgsAnnotationItemEditOperationTransientResults> operationResults( item->transientEditResultsV2( &operation, context ) );
         if ( operationResults )
         {
-          mTemporaryRubberBand.reset( new QgsRubberBand( mCanvas, operationResults->representativeGeometry().type() ) );
+          mTemporaryRubberBand = make_qobject_unique<QgsRubberBand>( mCanvas, operationResults->representativeGeometry().type() );
           const double scaleFactor = canvas()->fontMetrics().xHeight() * .2;
           mTemporaryRubberBand->setWidth( scaleFactor );
           mTemporaryRubberBand->setToGeometry( operationResults->representativeGeometry(), layer->crs() );
@@ -163,7 +163,7 @@ void QgsMapToolModifyAnnotation::cadCanvasMoveEvent( QgsMapMouseEvent *event )
         std::unique_ptr<QgsAnnotationItemEditOperationTransientResults> operationResults( item->transientEditResultsV2( &operation, context ) );
         if ( operationResults )
         {
-          mTemporaryRubberBand.reset( new QgsRubberBand( mCanvas, operationResults->representativeGeometry().type() ) );
+          mTemporaryRubberBand = make_qobject_unique<QgsRubberBand>( mCanvas, operationResults->representativeGeometry().type() );
           const double scaleFactor = canvas()->fontMetrics().xHeight() * .2;
           mTemporaryRubberBand->setWidth( scaleFactor );
           mTemporaryRubberBand->setToGeometry( operationResults->representativeGeometry(), layer->crs() );
@@ -592,7 +592,7 @@ void QgsMapToolModifyAnnotation::setHoveredItem( const QgsRenderedAnnotationItem
   const QList<QgsAnnotationItemNode> itemNodes = annotationItem->nodesV2( context );
   QgsRubberBand *vertexNodeBand = new QgsRubberBand( mCanvas, Qgis::GeometryType::Point );
 
-  vertexNodeBand->setIcon( QgsRubberBand::ICON_BOX );
+  vertexNodeBand->setIcon( Qgis::RubberBandIconType::Box );
   vertexNodeBand->setWidth( scaleFactor );
   vertexNodeBand->setIconSize( scaleFactor * 5 );
   vertexNodeBand->setColor( QColor( 200, 0, 120, 255 ) );
@@ -601,7 +601,7 @@ void QgsMapToolModifyAnnotation::setHoveredItem( const QgsRenderedAnnotationItem
   calloutNodeBand->setWidth( scaleFactor );
   calloutNodeBand->setSecondaryStrokeColor( QColor( 255, 255, 255, 100 ) );
   calloutNodeBand->setColor( QColor( 120, 200, 0, 255 ) );
-  calloutNodeBand->setIcon( QgsRubberBand::ICON_X );
+  calloutNodeBand->setIcon( Qgis::RubberBandIconType::CrossX );
   calloutNodeBand->setIconSize( scaleFactor * 5 );
 
   // store item nodes in a spatial index for quick searching
@@ -801,7 +801,7 @@ void QgsMapToolModifyAnnotation::createHoverBand()
 {
   const double scaleFactor = canvas()->fontMetrics().xHeight() * .2;
 
-  mHoverRubberBand.reset( new QgsRubberBand( mCanvas, Qgis::GeometryType::Line ) );
+  mHoverRubberBand = make_qobject_unique<QgsRubberBand>( mCanvas, Qgis::GeometryType::Line );
   mHoverRubberBand->setWidth( scaleFactor );
   mHoverRubberBand->setSecondaryStrokeColor( QColor( 255, 255, 255, 100 ) );
   mHoverRubberBand->setColor( QColor( 100, 100, 100, 155 ) );
@@ -811,8 +811,8 @@ void QgsMapToolModifyAnnotation::createHoveredNodeBand()
 {
   const double scaleFactor = canvas()->fontMetrics().xHeight() * .2;
 
-  mHoveredNodeRubberBand.reset( new QgsRubberBand( mCanvas, Qgis::GeometryType::Point ) );
-  mHoveredNodeRubberBand->setIcon( QgsRubberBand::ICON_FULL_BOX );
+  mHoveredNodeRubberBand = make_qobject_unique<QgsRubberBand>( mCanvas, Qgis::GeometryType::Point );
+  mHoveredNodeRubberBand->setIcon( Qgis::RubberBandIconType::BoxFilled );
   mHoveredNodeRubberBand->setWidth( scaleFactor );
   mHoveredNodeRubberBand->setIconSize( scaleFactor * 5 );
   mHoveredNodeRubberBand->setColor( QColor( 200, 0, 120, 255 ) );
@@ -822,7 +822,7 @@ void QgsMapToolModifyAnnotation::createSelectedItemBand()
 {
   const double scaleFactor = canvas()->fontMetrics().xHeight() * .2;
 
-  mSelectedRubberBand.reset( new QgsRubberBand( mCanvas, Qgis::GeometryType::Line ) );
+  mSelectedRubberBand = make_qobject_unique<QgsRubberBand>( mCanvas, Qgis::GeometryType::Line );
   mSelectedRubberBand->setWidth( scaleFactor );
   mSelectedRubberBand->setSecondaryStrokeColor( QColor( 255, 255, 255, 100 ) );
   mSelectedRubberBand->setColor( QColor( 50, 50, 50, 200 ) );

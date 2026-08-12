@@ -74,6 +74,7 @@ QgsPointCloudLayer::QgsPointCloudLayer( const QString &uri, const QString &baseN
   connect( this, &QgsPointCloudLayer::subsetStringChanged, this, &QgsMapLayer::configChanged );
   connect( undoStack(), &QUndoStack::indexChanged, this, &QgsMapLayer::layerModified );
   connect( this, &QgsMapLayer::layerModified, this, [this] { triggerRepaint(); } );
+  connect( this, &QgsMapLayer::dataChanged, this, [this] { triggerRepaint(); } );
 }
 
 QgsPointCloudLayer::~QgsPointCloudLayer()
@@ -959,7 +960,7 @@ void QgsPointCloudLayer::loadIndexesForRenderContext( QgsRenderContext &renderer
 
         if ( subIndex.at( i ).extent().intersects( renderExtent ) && ( renderExtent.width() < widthThreshold || renderExtent.height() < heightThreshold ) )
         {
-          mDataProvider->loadSubIndex( i );
+          mDataProvider->loadSubIndex( i, true );
         }
       }
     }
@@ -1056,7 +1057,11 @@ bool QgsPointCloudLayer::rollBack()
   if ( mIsVpc )
   {
     if ( mEditingIndexes.isEmpty() )
-      return false;
+    {
+      mEditable = false;
+      emit editingStopped();
+      return true;
+    }
 
     QVector<QPair<int, QList<QgsPointCloudNodeId>>> queuedUpdates;
     queuedUpdates.reserve( mEditingIndexes.size() );
@@ -1153,7 +1158,7 @@ bool QgsPointCloudLayer::changeAttributeValue( const QHash<int, QHash<QgsPointCl
 {
   QGIS_PROTECT_QOBJECT_THREAD_ACCESS
 
-  QgsEventTracing::ScopedEvent _trace( u"PointCloud"_s, u"QgsPointCloudLayer::changeAttributeValue"_s );
+  QgsScopedEvent _trace( u"PointCloud"_s, u"QgsPointCloudLayer::changeAttributeValue"_s );
 
   if ( !mEditable )
     return false;
@@ -1289,5 +1294,18 @@ QgsPointCloudIndex QgsPointCloudLayer::overview() const
     return QgsPointCloudIndex();
 
   const QgsVirtualPointCloudProvider *vpcProvider = dynamic_cast<QgsVirtualPointCloudProvider *>( mDataProvider.get() );
-  return vpcProvider->overview();
+
+  if ( vpcProvider->overviews().isEmpty() )
+    return QgsPointCloudIndex();
+
+  return vpcProvider->overviews().first();
+}
+
+QVector<QgsPointCloudIndex> QgsPointCloudLayer::overviews() const
+{
+  if ( !mDataProvider || !mIsVpc )
+    return {};
+
+  const QgsVirtualPointCloudProvider *vpcProvider = dynamic_cast<QgsVirtualPointCloudProvider *>( mDataProvider.get() );
+  return vpcProvider->overviews();
 }

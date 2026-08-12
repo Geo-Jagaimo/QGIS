@@ -31,6 +31,7 @@
 #include "qgsreadwritelocker.h"
 #include "qgsrenderer.h"
 #include "qgsruntimeprofiler.h"
+#include "qgssymbolconverter.h"
 #include "qgsvariantutils.h"
 #include "qgsvectorlayerlabeling.h"
 
@@ -72,11 +73,11 @@ QgsAfsProvider::QgsAfsProvider( const QString &uri, const ProviderOptions &optio
   const bool isTable = layerData.value( u"type"_s ).toString().compare( "table"_L1, Qt::CaseInsensitive ) == 0;
   mLayerName = layerData[u"name"_s].toString();
   mLayerDescription = layerData[u"description"_s].toString();
-  mCapabilityStrings = layerData[u"capabilities"_s].toString().split( ',' );
+  mCapabilities = QgsArcGisRestUtils::serviceCapabilitiesFromString( layerData[u"capabilities"_s].toString() );
 
   mSharedData->mObjectIdFieldName = layerData[u"objectIdField"_s].toString();
 
-  if ( mCapabilityStrings.contains( "update"_L1, Qt::CaseInsensitive ) )
+  if ( mCapabilities.testFlag( Qgis::ArcGisRestServiceCapability::Update ) )
   {
     // if the user has update capability, see if this extends to field definition modification
     QString adminUrl = mSharedData->mDataSource.param( u"url"_s );
@@ -98,7 +99,7 @@ QgsAfsProvider::QgsAfsProvider( const QString &uri, const ProviderOptions &optio
 
   mServerSupportsCurvedUpdates = layerData.value( u"allowTrueCurvesUpdates"_s, false ).toBool();
 
-  const bool useCurvedTypes = mServerSupportsCurvedUpdates || !mCapabilityStrings.contains( "update"_L1, Qt::CaseInsensitive );
+  const bool useCurvedTypes = mServerSupportsCurvedUpdates || !mCapabilities.testFlag( Qgis::ArcGisRestServiceCapability::Update );
   if ( !isTable )
   {
     // Set extent
@@ -336,7 +337,28 @@ QgsAfsProvider::QgsAfsProvider( const QString &uri, const ProviderOptions &optio
   const QVariant transparency = layerData.value( u"drawingInfo"_s ).toMap().value( u"transparency"_s );
   if ( transparency.isValid() )
   {
-    mRendererDataMap.insert( u"transparency"_s, transparency );
+    bool ok = false;
+    const double transparencyValue = transparency.toDouble( &ok );
+    if ( ok )
+      mRenderingSettings.setLayerOpacity( ( 100.0 - transparencyValue ) / 100.0 );
+  }
+
+  const QVariant minScale = layerData.value( u"minScale"_s );
+  if ( minScale.isValid() )
+  {
+    bool ok = false;
+    const double minScaleValue = minScale.toDouble( &ok );
+    if ( ok )
+      mRenderingSettings.setMinimumScale( minScaleValue );
+  }
+
+  const QVariant maxScale = layerData.value( u"maxScale"_s );
+  if ( maxScale.isValid() )
+  {
+    bool ok = false;
+    const double maxScaleValue = maxScale.toDouble( &ok );
+    if ( ok )
+      mRenderingSettings.setMaximumScale( maxScaleValue );
   }
 
   mValid = true;
@@ -381,7 +403,7 @@ QgsLayerMetadata QgsAfsProvider::layerMetadata() const
 
 bool QgsAfsProvider::deleteFeatures( const QgsFeatureIds &ids )
 {
-  if ( !mCapabilityStrings.contains( "delete"_L1, Qt::CaseInsensitive ) )
+  if ( !mCapabilities.testFlag( Qgis::ArcGisRestServiceCapability::Delete ) )
     return false;
 
   QString error;
@@ -397,7 +419,7 @@ bool QgsAfsProvider::deleteFeatures( const QgsFeatureIds &ids )
 
 bool QgsAfsProvider::addFeatures( QgsFeatureList &flist, Flags )
 {
-  if ( !mCapabilityStrings.contains( "create"_L1, Qt::CaseInsensitive ) )
+  if ( !mCapabilities.testFlag( Qgis::ArcGisRestServiceCapability::Create ) )
     return false;
 
   if ( flist.isEmpty() )
@@ -430,7 +452,7 @@ bool QgsAfsProvider::addFeatures( QgsFeatureList &flist, Flags )
 
 bool QgsAfsProvider::changeAttributeValues( const QgsChangedAttributesMap &attrMap )
 {
-  if ( !mCapabilityStrings.contains( "update"_L1, Qt::CaseInsensitive ) )
+  if ( !mCapabilities.testFlag( Qgis::ArcGisRestServiceCapability::Update ) )
     return false;
 
   QgsFeatureIds ids;
@@ -479,7 +501,7 @@ bool QgsAfsProvider::changeAttributeValues( const QgsChangedAttributesMap &attrM
 
 bool QgsAfsProvider::changeGeometryValues( const QgsGeometryMap &geometryMap )
 {
-  if ( !mCapabilityStrings.contains( "update"_L1, Qt::CaseInsensitive ) )
+  if ( !mCapabilities.testFlag( Qgis::ArcGisRestServiceCapability::Update ) )
     return false;
 
   const QgsFields fields = mSharedData->mFields;
@@ -520,7 +542,7 @@ bool QgsAfsProvider::changeGeometryValues( const QgsGeometryMap &geometryMap )
 
 bool QgsAfsProvider::changeFeatures( const QgsChangedAttributesMap &attrMap, const QgsGeometryMap &geometryMap )
 {
-  if ( !mCapabilityStrings.contains( "update"_L1, Qt::CaseInsensitive ) )
+  if ( !mCapabilities.testFlag( Qgis::ArcGisRestServiceCapability::Update ) )
     return false;
 
   QgsFeatureIds ids;
@@ -648,15 +670,15 @@ Qgis::VectorProviderCapabilities QgsAfsProvider::capabilities() const
   if ( mServerSupportsCurvedUpdates )
     c |= Qgis::VectorProviderCapability::CircularGeometries;
 
-  if ( mCapabilityStrings.contains( "delete"_L1, Qt::CaseInsensitive ) )
+  if ( mCapabilities.testFlag( Qgis::ArcGisRestServiceCapability::Delete ) )
   {
     c |= Qgis::VectorProviderCapability::DeleteFeatures;
   }
-  if ( mCapabilityStrings.contains( "create"_L1, Qt::CaseInsensitive ) )
+  if ( mCapabilities.testFlag( Qgis::ArcGisRestServiceCapability::Create ) )
   {
     c |= Qgis::VectorProviderCapability::AddFeatures;
   }
-  if ( mCapabilityStrings.contains( "update"_L1, Qt::CaseInsensitive ) )
+  if ( mCapabilities.testFlag( Qgis::ArcGisRestServiceCapability::Update ) )
   {
     c |= Qgis::VectorProviderCapability::ChangeAttributeValues;
     c |= Qgis::VectorProviderCapability::ChangeFeatures;
@@ -786,12 +808,19 @@ void QgsAfsProvider::reloadProviderData()
 
 QgsFeatureRenderer *QgsAfsProvider::createRenderer( const QVariantMap & ) const
 {
-  return QgsArcGisRestUtils::convertRenderer( mRendererDataMap ).release();
+  QgsReadWriteContext rwContext;
+  QgsSymbolConverterContext context( rwContext );
+  return QgsArcGisRestUtils::convertRenderer( mRendererDataMap, context ).release();
 }
 
 QgsAbstractVectorLayerLabeling *QgsAfsProvider::createLabeling( const QVariantMap & ) const
 {
   return QgsArcGisRestUtils::convertLabeling( mLabelingDataList ).release();
+}
+
+const QgsLayerRenderingSettings *QgsAfsProvider::renderingSettings( const QVariantMap & ) const
+{
+  return &mRenderingSettings;
 }
 
 bool QgsAfsProvider::renderInPreview( const QgsDataProvider::PreviewContext & )
@@ -809,6 +838,11 @@ QgsAfsProviderMetadata::QgsAfsProviderMetadata()
 QIcon QgsAfsProviderMetadata::icon() const
 {
   return QgsApplication::getThemeIcon( u"mIconAfs.svg"_s );
+}
+
+QgsProviderMetadata::ProviderCapabilities QgsAfsProviderMetadata::providerCapabilities() const
+{
+  return QgsProviderMetadata::ProviderCapability::ParallelCreateProvider;
 }
 
 QList<QgsDataItemProvider *> QgsAfsProviderMetadata::dataItemProviders() const

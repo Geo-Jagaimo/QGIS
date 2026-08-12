@@ -20,7 +20,7 @@
 #include "qgsgui.h"
 #include "qgsmaterialregistry.h"
 #include "qgsmaterialsettingswidget.h"
-#include "qgsphongmaterialsettings.h"
+#include "qgsmetalroughmaterialsettings.h"
 #include "qgsreadwritecontext.h"
 #include "qgsvectorlayer.h"
 
@@ -53,7 +53,7 @@ QgsMaterialWidget::QgsMaterialWidget( QWidget *parent )
   connect( mMaterialTypeComboBox, static_cast<void ( QComboBox::* )( int )>( &QComboBox::currentIndexChanged ), this, &QgsMaterialWidget::materialTypeChanged );
   materialTypeChanged();
 
-  setSettings( new QgsPhongMaterialSettings(), nullptr );
+  setSettings( new QgsMetalRoughMaterialSettings(), nullptr );
 }
 
 QgsMaterialWidget::~QgsMaterialWidget() = default;
@@ -85,10 +85,10 @@ void QgsMaterialWidget::rebuildAvailableTypes()
   const int prevIndex = mMaterialTypeComboBox->findData( prevType );
   if ( prevIndex == -1 )
   {
-    // if phong material type is available, default to it (for now?)
-    const int phongIndex = mMaterialTypeComboBox->findData( u"phong"_s );
-    if ( phongIndex >= 0 )
-      mMaterialTypeComboBox->setCurrentIndex( phongIndex );
+    // if metalrough material type is available, default to it
+    const int metalroughIndex = mMaterialTypeComboBox->findData( u"metalrough"_s );
+    if ( metalroughIndex >= 0 )
+      mMaterialTypeComboBox->setCurrentIndex( metalroughIndex );
     else
       mMaterialTypeComboBox->setCurrentIndex( 0 );
   }
@@ -129,6 +129,24 @@ void QgsMaterialWidget::setType( const QString &type )
   materialTypeChanged();
 }
 
+void QgsMaterialWidget::setDockMode( bool dockMode )
+{
+  QgsPanelWidget::setDockMode( dockMode );
+  if ( QgsMaterialSettingsWidget *w = qobject_cast<QgsMaterialSettingsWidget *>( mStackedWidget->currentWidget() ) )
+  {
+    w->setDockMode( dockMode );
+  }
+}
+
+void QgsMaterialWidget::setPreviewVisible( bool visible )
+{
+  mPreviewVisible = visible;
+  if ( QgsMaterialSettingsWidget *w = qobject_cast<QgsMaterialSettingsWidget *>( mStackedWidget->currentWidget() ) )
+  {
+    w->setPreviewVisible( visible );
+  }
+}
+
 void QgsMaterialWidget::materialTypeChanged()
 {
   std::unique_ptr<QgsAbstractMaterialSettings> currentSettings( settings() );
@@ -163,7 +181,7 @@ void QgsMaterialWidget::materialWidgetChanged()
 {
   if ( QgsMaterialSettingsWidget *w = qobject_cast<QgsMaterialSettingsWidget *>( mStackedWidget->currentWidget() ) )
   {
-    mCurrentSettings.reset( w->settings() );
+    mCurrentSettings = w->settings();
   }
   emit changed();
 }
@@ -185,10 +203,13 @@ void QgsMaterialWidget::updateMaterialWidget()
     {
       w->setSettings( mCurrentSettings.get(), mLayer );
       w->setTechnique( mTechnique );
+      w->setPreviewVisible( mPreviewVisible );
+      w->setDockMode( dockMode() );
       mStackedWidget->addWidget( w );
       mStackedWidget->setCurrentWidget( w );
       // start receiving updates from widget
       connect( w, &QgsMaterialSettingsWidget::changed, this, &QgsMaterialWidget::materialWidgetChanged );
+      connect( w, &QgsMaterialSettingsWidget::showPanel, this, &QgsMaterialWidget::openPanel );
       return;
     }
   }
@@ -208,6 +229,7 @@ QgsMaterialWidgetDialog::QgsMaterialWidgetDialog( const QgsAbstractMaterialSetti
 
   QVBoxLayout *vLayout = new QVBoxLayout();
   mWidget = new QgsMaterialWidget();
+  mWidget->setPreviewVisible( true );
   vLayout->addWidget( mWidget, 1 );
 
   if ( settings )
@@ -221,6 +243,8 @@ QgsMaterialWidgetDialog::QgsMaterialWidgetDialog( const QgsAbstractMaterialSetti
   vLayout->addWidget( mButtonBox );
   setLayout( vLayout );
   setWindowTitle( tr( "Material" ) );
+
+  connect( mWidget, &QgsPanelWidget::panelAccepted, this, &QDialog::reject );
 }
 
 std::unique_ptr<QgsAbstractMaterialSettings> QgsMaterialWidgetDialog::settings()

@@ -48,6 +48,7 @@ namespace QgsWms
 {
   namespace
   {
+    QString dateToString( const QDateTime &dateTime, bool forceToDate );
 
     void appendLayerProjectSettings( QDomDocument &doc, QDomElement &layerElem, QgsMapLayer *currentLayer );
 
@@ -59,7 +60,7 @@ namespace QgsWms
 
     void appendCrsElementToLayer( QDomDocument &doc, QDomElement &layerElement, const QDomElement &precedingElement, const QString &crsText );
 
-    void appendCrsElementsToLayer( QDomDocument &doc, QDomElement &layerElement, const QStringList &crsList, const QStringList &constrainedCrsList );
+    void appendCrsElementsToLayer( QDomDocument &doc, QDomElement &layerElement, const QStringList &crsList, const QStringList &constrainedCrsList, bool hasEarthCrs = true );
 
     void appendLayerStyles( QDomDocument &doc, QDomElement &layerElem, const QgsWmsLayerInfos &layerInfos, const QgsProject *project, const QgsWmsRequest &request, const QgsServerSettings *settings );
 
@@ -76,6 +77,7 @@ namespace QgsWms
     );
 
     void addKeywordListElement( const QgsProject *project, QDomDocument &doc, QDomElement &parent );
+
   } // namespace
 
   void writeGetCapabilities( QgsServerInterface *serverIface, const QgsProject *project, const QgsWmsRequest &request, QgsServerResponse &response, bool projectSettings )
@@ -786,11 +788,13 @@ namespace QgsWms
     const QgsRectangle wgs84BoundingRect = combineWgs84BoundingRect( layerIds, wmsLayerInfos );
     QMap<QString, QgsRectangle> crsExtents = combineCrsExtents( layerIds, wmsLayerInfos );
 
-    appendCrsElementsToLayer( doc, parentLayer, crsExtents.keys(), QStringList() );
+    appendCrsElementsToLayer( doc, parentLayer, crsExtents.keys(), QStringList(), !wgs84BoundingRect.isNull() );
     appendLayerWgs84BoundingRect( doc, parentLayer, wgs84BoundingRect );
     appendLayerCrsExtents( doc, parentLayer, crsExtents );
 
-    appendLayersFromTreeGroup( doc, parentLayer, serverIface, project, request, layerTreeGroup, wmsLayerInfos, projectSettings, parentDateRanges );
+    // when the group is opaque we should not append any child layers
+    if ( layerTreeGroup->wmsGroupRequestMode() != Qgis::WmsGroupRequestMode::Opaque )
+      appendLayersFromTreeGroup( doc, parentLayer, serverIface, project, request, layerTreeGroup, wmsLayerInfos, projectSettings, parentDateRanges );
   }
 
   QDomElement getLayersAndStylesCapabilitiesElement( QDomDocument &doc, QgsServerInterface *serverIface, const QgsProject *project, const QgsWmsRequest &request, bool projectSettings )
@@ -799,19 +803,23 @@ namespace QgsWms
 
     QDomElement layerParentElem = doc.createElement( u"Layer"_s );
 
-    // Root Layer name
-    QString rootLayerName = QgsServerProjectUtils::wmsRootName( *project );
-    if ( rootLayerName.isEmpty() && !project->title().isEmpty() )
+    const bool skipNameForGroup = QgsServerProjectUtils::wmsSkipNameForGroup( *project );
+    if ( !skipNameForGroup )
     {
-      rootLayerName = project->title();
-    }
+      // Root Layer name
+      QString rootLayerName = QgsServerProjectUtils::wmsRootName( *project );
+      if ( rootLayerName.isEmpty() && !project->title().isEmpty() )
+      {
+        rootLayerName = project->title();
+      }
 
-    if ( !rootLayerName.isEmpty() )
-    {
-      QDomElement layerParentNameElem = doc.createElement( u"Name"_s );
-      QDomText layerParentNameText = doc.createTextNode( rootLayerName );
-      layerParentNameElem.appendChild( layerParentNameText );
-      layerParentElem.appendChild( layerParentNameElem );
+      if ( !rootLayerName.isEmpty() )
+      {
+        QDomElement layerParentNameElem = doc.createElement( u"Name"_s );
+        QDomText layerParentNameText = doc.createTextNode( rootLayerName );
+        layerParentNameElem.appendChild( layerParentNameText );
+        layerParentElem.appendChild( layerParentNameElem );
+      }
     }
 
     // Root Layer title
@@ -864,15 +872,18 @@ namespace QgsWms
     {
       const QgsCoordinateReferenceSystem wgs84 = QgsCoordinateReferenceSystem::fromOgcWmsCrs( Qgis::geographicCrsAuthId() );
 
-      // Get WMS WGS84 bounding rectangle
+      // Get WMS WGS84 bounding rectangle (only meaningful for Earth-based CRS)
       QgsRectangle wmsWgs84BoundingRect;
-      try
+      if ( project->crs().isEarthCrs() )
       {
-        wmsWgs84BoundingRect = QgsWmsLayerInfos::transformExtent( wmsExtent, project->crs(), wgs84, project->transformContext(), true );
-      }
-      catch ( QgsCsException &cse )
-      {
-        QgsMessageLog::logMessage( u"Error transforming extent: %1"_s.arg( cse.what() ), u"Server"_s, Qgis::MessageLevel::Warning );
+        try
+        {
+          wmsWgs84BoundingRect = QgsWmsLayerInfos::transformExtent( wmsExtent, project->crs(), wgs84, project->transformContext(), true );
+        }
+        catch ( QgsCsException &cse )
+        {
+          QgsMessageLog::logMessage( u"Error transforming extent: %1"_s.arg( cse.what() ), u"Server"_s, Qgis::MessageLevel::Warning );
+        }
       }
 
       // Get WMS extents in output CRSes
@@ -888,7 +899,7 @@ namespace QgsWms
 
       layerParentElem.setAttribute( u"queryable"_s, hasQueryableLayers( projectLayerTreeRoot->findLayerIds(), wmsLayerInfos ) ? u"1"_s : u"0"_s );
 
-      appendCrsElementsToLayer( doc, layerParentElem, wmsCrsExtents.keys(), QStringList() );
+      appendCrsElementsToLayer( doc, layerParentElem, wmsCrsExtents.keys(), QStringList(), project->crs().isEarthCrs() );
       appendLayerWgs84BoundingRect( doc, layerParentElem, wmsWgs84BoundingRect );
       appendLayerCrsExtents( doc, layerParentElem, wmsCrsExtents );
 
@@ -1105,7 +1116,15 @@ namespace QgsWms
       return styleElem;
     }
 
-    //! Return TRUE if date only have been written, FALSE if there is datetime
+    /**
+     * Returns \a dateTime string representation. Remove time if \a dateOnly is TRUE
+     */
+    QString dateToString( const QDateTime &dateTime, bool dateOnly )
+    {
+      return dateOnly ? dateTime.date().toString( Qt::DateFormat::ISODate ) : dateTime.toString( Qt::DateFormat::ISODate );
+    }
+
+    //! Return TRUE if date only have been written, FALSE if there are date and time
     bool writeTimeDimensionNode( QDomDocument &doc, QDomElement &layerElem, const QList<QgsDateTimeRange> &dateRanges )
     {
       // Apparently, for vectors allTemporalRanges is always empty :/
@@ -1114,11 +1133,9 @@ namespace QgsWms
       // we write a TIME dimension even if dateRanges is empty. Not sure this is appropriate but
       // it was like that from the beginning so better keep it that way to avoid regression on client side
 
-      const bool hasDateTime = std::any_of( dateRanges.constBegin(), dateRanges.constEnd(), []( const QgsDateTimeRange &r ) {
-        return r.begin().time() != QTime( 0, 0 ) || ( !r.isInstant() && r.end().time() != QTime( 0, 0 ) );
+      const bool dateOnly = std::all_of( dateRanges.constBegin(), dateRanges.constEnd(), []( const QgsDateTimeRange &r ) {
+        return r.begin().time() == QTime( 0, 0 ) && ( r.isInstant() || r.end().time() == QTime( 0, 0 ) );
       } );
-
-      const QString dateFormat = hasDateTime ? u"yyyy-MM-ddTHH:mm:ss"_s : u"yyyy-MM-dd"_s;
 
       QStringList strValues;
       for ( const QgsDateTimeRange &range : dateRanges )
@@ -1126,7 +1143,7 @@ namespace QgsWms
         // Standard ISO8601 doesn't support range with no defined begin or end
         if ( range.begin().isValid() && range.end().isValid() )
         {
-          strValues << ( range.isInstant() ? range.begin().toString( dateFormat ) : u"%1/%2"_s.arg( range.begin().toString( dateFormat ) ).arg( range.end().toString( dateFormat ) ) );
+          strValues << ( range.isInstant() ? dateToString( range.begin(), dateOnly ) : u"%1/%2"_s.arg( dateToString( range.begin(), dateOnly ) ).arg( dateToString( range.end(), dateOnly ) ) );
         }
       }
 
@@ -1138,7 +1155,7 @@ namespace QgsWms
 
       layerElem.appendChild( dimElem );
 
-      return !hasDateTime;
+      return dateOnly;
     }
 
     void appendLayersFromTreeGroup(
@@ -1184,6 +1201,7 @@ namespace QgsWms
           if ( projectSettings )
           {
             layerElem.setAttribute( u"mutuallyExclusive"_s, treeGroupChild->isMutuallyExclusive() );
+            layerElem.setAttribute( u"opaque"_s, ( treeGroupChild->wmsGroupRequestMode() == Qgis::WmsGroupRequestMode::Opaque ) );
           }
 
           const QString shortName = treeGroupChild->serverProperties()->shortName();
@@ -1218,6 +1236,7 @@ namespace QgsWms
             layerElem.appendChild( treeNameElem );
           }
 
+
           QList<QgsDateTimeRange> childrenDateRanges;
           handleLayersFromTreeGroup( doc, layerElem, serverIface, project, request, treeGroupChild, wmsLayerInfos, projectSettings, childrenDateRanges );
 
@@ -1227,8 +1246,8 @@ namespace QgsWms
             parentDateRanges.append( childrenDateRanges );
           }
 
-          // Check if child layer elements have been added
-          if ( layerElem.elementsByTagName( u"Layer"_s ).length() == 0 )
+          // Check if child layer elements have been added - anyway opaque groups are added even without any children
+          if ( ( treeGroupChild->wmsGroupRequestMode() != Qgis::WmsGroupRequestMode::Opaque ) && layerElem.elementsByTagName( u"Layer"_s ).length() == 0 )
           {
             continue;
           }
@@ -1256,7 +1275,7 @@ namespace QgsWms
           // Append not null Bounding rectangles
           if ( !layerInfos.wgs84BoundingRect.isNull() )
           {
-            appendCrsElementsToLayer( doc, layerElem, layerInfos.crsExtents.keys(), QStringList() );
+            appendCrsElementsToLayer( doc, layerElem, layerInfos.crsExtents.keys(), QStringList(), l->crs().isEarthCrs() );
 
             appendLayerWgs84BoundingRect( doc, layerElem, layerInfos.wgs84BoundingRect );
 
@@ -1388,7 +1407,7 @@ namespace QgsWms
 
             // Add all values
             const QList<QgsDateTimeRange> allRanges { l->temporalProperties()->allTemporalRanges( l ) };
-            const bool isDateList = writeTimeDimensionNode( doc, layerElem, allRanges );
+            const bool dateOnly = writeTimeDimensionNode( doc, layerElem, allRanges );
 
             parentDateRanges.append( allRanges );
 
@@ -1396,15 +1415,7 @@ namespace QgsWms
             timeExtentElem.setAttribute( u"name"_s, u"TIME"_s );
 
             const QgsDateTimeRange timeExtent { l->temporalProperties()->calculateTemporalExtent( l ) };
-            QString extent;
-            if ( isDateList )
-            {
-              extent = u"%1/%2"_s.arg( timeExtent.begin().date().toString( Qt::DateFormat::ISODate ), timeExtent.end().date().toString( Qt::DateFormat::ISODate ) );
-            }
-            else
-            {
-              extent = u"%1/%2"_s.arg( timeExtent.begin().toString( Qt::DateFormat::ISODate ), timeExtent.end().toString( Qt::DateFormat::ISODate ) );
-            }
+            const QString extent = u"%1/%2"_s.arg( dateToString( timeExtent.begin(), dateOnly ) ).arg( dateToString( timeExtent.end(), dateOnly ) );
             QDomText extentValueText = doc.createTextNode( extent );
             timeExtentElem.appendChild( extentValueText );
             layerElem.appendChild( timeExtentElem );
@@ -1432,7 +1443,7 @@ namespace QgsWms
       }
     }
 
-    void appendCrsElementsToLayer( QDomDocument &doc, QDomElement &layerElement, const QStringList &crsList, const QStringList &constrainedCrsList )
+    void appendCrsElementsToLayer( QDomDocument &doc, QDomElement &layerElement, const QStringList &crsList, const QStringList &constrainedCrsList, bool hasEarthCrs )
     {
       if ( layerElement.isNull() )
       {
@@ -1470,9 +1481,9 @@ namespace QgsWms
         }
       }
 
-      // Support for CRS:84 is mandatory (equals EPSG:4326 with reversed axis)
+      // Support for CRS:84 is mandatory for Earth-based layers (equals EPSG:4326 with reversed axis)
       // https://github.com/opengeospatial/ets-wms13/blob/47155399c09b200cb21382874fdb21d5fae4ab6e/src/site/markdown/index.md
-      if ( version == "1.3.0"_L1 )
+      if ( version == "1.3.0"_L1 && hasEarthCrs )
       {
         appendCrsElementToLayer( doc, layerElement, CRSPrecedingElement, QString( "CRS:84" ) );
       }
@@ -1611,6 +1622,9 @@ namespace QgsWms
 
       QStringList layerList;
 
+      QHash<const QgsMapLayer *, QStringList> acceptableLayersAndRequestNames;
+      collectAcceptableLayersAndRequestNames( acceptableLayersAndRequestNames, *project );
+
       const QgsLayerTree *projectLayerTreeRoot = project->layerTreeRoot();
       QList<QgsMapLayer *> projectLayerOrder = projectLayerTreeRoot->layerOrder();
       for ( int i = 0; i < projectLayerOrder.size(); ++i )
@@ -1618,6 +1632,12 @@ namespace QgsWms
         QgsMapLayer *l = projectLayerOrder.at( i );
 
         if ( restrictedLayers.contains( l->name() ) ) //unpublished layer
+        {
+          continue;
+        }
+
+        //Continue when the layer is an opaque layer child
+        if ( !acceptableLayersAndRequestNames.contains( l ) )
         {
           continue;
         }

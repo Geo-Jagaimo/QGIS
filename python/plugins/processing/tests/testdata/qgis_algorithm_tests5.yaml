@@ -231,6 +231,26 @@ tests:
         name: expected/simplify_coverage.gml
         type: vector
 
+  - algorithm: native:coverageclean
+    name: Clean coverage
+    condition:
+      geos:
+        at_least: 31400
+    params:
+      INPUT:
+        name: coverage_clean.gml
+        type: vector
+      MAXIMUM_GAP_WIDTH: 2
+      SNAPPING_DISTANCE: 0
+      OVERLAP_MERGE_STRATEGY: 0
+    results:
+      OUTPUT:
+        name: expected/coverage_clean.gml
+        type: vector
+        compare:
+          geometry:
+            normalize: True
+
   - algorithm: native:creategrid
     name: Create rectangle grid with negative overlay
     params:
@@ -768,3 +788,43 @@ tests:
       OUTPUT:
         name: expected/geometry_by_expression_layerref.gml
         type: vector
+
+  - algorithm: native:tightconcavehullofpolygons
+    name: Concave hull of polygons (0.1 ratio)
+    condition:
+      geos:
+        at_least: 31100
+    params:
+      HOLES: true
+      INPUT:
+        name: multipolys.gml|layername=multipolys
+        type: vector
+      RATIO: 0.1
+    results:
+      OUTPUT:
+        name: expected/concave_hull_of_polygons.gml
+        type: vector
+        compare:
+          geometry:
+            precision: 5
+            normalize: True
+
+  - algorithm: native:tightconcavehullofpolygons
+    name: Concave hull of polygons (0.3 ratio)
+    condition:
+      geos:
+        at_least: 31100
+    params:
+      HOLES: true
+      INPUT:
+        name: multipolys.gml|layername=multipolys
+        type: vector
+      RATIO: 0.3
+    results:
+      OUTPUT:
+        name: expected/concave_hull_of_polygons_03.gml
+        type: vector
+        compare:
+          geometry:
+            precision: 5
+            normalize: True

@@ -120,7 +120,7 @@ QMenu *QgsAppLayerTreeViewMenuProvider::createContextMenu()
       menu->addSeparator()->setObjectName( "RemoveSeparator"_L1 );
 
       menu->addAction( QgsApplication::getThemeIcon( u"/mActionSetCRS.png"_s ), tr( "Set Group &CRS…" ), QgisApp::instance(), &QgisApp::legendGroupSetCrs );
-      menu->addAction( tr( "Set Group &WMS Data…" ), QgisApp::instance(), &QgisApp::legendGroupSetWmsData );
+      menu->addAction( tr( "Set Group &WMS Properties…" ), QgisApp::instance(), &QgisApp::legendGroupSetWmsData );
 
       menu->addSeparator()->setObjectName( "WmsSeparator"_L1 );
 
@@ -947,6 +947,14 @@ QMenu *QgsAppLayerTreeViewMenuProvider::createContextMenu()
       menu->addAction( QgsApplication::getThemeIcon( u"/mActionShowAllLayers.svg"_s ), tr( "&Show All Items" ), node, &QgsLayerTreeModelLegendNode::checkAllItems );
       menu->addAction( QgsApplication::getThemeIcon( u"/mActionHideAllLayers.svg"_s ), tr( "&Hide All Items" ), node, &QgsLayerTreeModelLegendNode::uncheckAllItems );
       menu->addSeparator()->setObjectName( "UserCheckableSeparator"_L1 );
+    }
+
+    if ( node->flags() & Qt::ItemIsEditable )
+    {
+      QAction *renameAction = new QAction( tr( "Rename Item…" ), menu );
+      connect( renameAction, &QAction::triggered, this, [this] { mView->edit( mView->currentIndex() ); } );
+      menu->addAction( renameAction );
+      menu->addSeparator()->setObjectName( "RenameItemSeparator"_L1 );
     }
 
     if ( QgsSymbolLegendNode *symbolNode = qobject_cast<QgsSymbolLegendNode *>( node ) )

@@ -340,6 +340,11 @@ QVariant QgsLayerTreeModel::data( const QModelIndex &index, int role ) const
           parts << tr( "<b>Feature count is estimated</b> : the feature count is determined by the database statistics" );
         }
 
+        if ( QgsSettingsRegistryCore::settingsLayerTreeShowIdInLayerTooltips->value() )
+        {
+          parts << tr( "ID: %1" ).arg( layer->id() );
+        }
+
         return parts.join( "<br/>"_L1 );
       }
     }
@@ -796,6 +801,12 @@ void QgsLayerTreeModel::addTargetScreenProperties( const QgsScreenProperties &pr
   mTargetScreenProperties.insert( properties );
 }
 
+void QgsLayerTreeModel::setTargetScreenProperties( const QSet<QgsScreenProperties> &properties )
+{
+  mTargetScreenProperties = properties;
+  invalidateDisplayData();
+}
+
 QSet<QgsScreenProperties> QgsLayerTreeModel::targetScreenProperties() const
 {
   return mTargetScreenProperties;
@@ -815,6 +826,41 @@ void QgsLayerTreeModel::waitForHitTestBlocking()
 bool QgsLayerTreeModel::hitTestInProgress() const
 {
   return static_cast< bool >( mHitTestTask );
+}
+
+void QgsLayerTreeModel::invalidateDisplayData()
+{
+  std::function< void( QgsLayerTreeNode * ) > invalidateNode;
+  invalidateNode = [this, &invalidateNode]( QgsLayerTreeNode *node ) {
+    if ( !node )
+      return;
+
+    switch ( node->nodeType() )
+    {
+      case QgsLayerTreeNode::NodeLayer:
+      {
+        auto layerNode = qobject_cast< QgsLayerTreeLayer * >( node );
+        const QList<QgsLayerTreeModelLegendNode *> legendNodes = layerLegendNodes( layerNode );
+        for ( QgsLayerTreeModelLegendNode *legendNode : legendNodes )
+        {
+          legendNode->invalidateDisplayData();
+        }
+
+        break;
+      }
+
+      case QgsLayerTreeNode::NodeGroup:
+      case QgsLayerTreeNode::NodeCustom:
+        break;
+    }
+
+    const QList<QgsLayerTreeNode *> children = node->children();
+    for ( QgsLayerTreeNode *childNode : children )
+    {
+      invalidateNode( childNode );
+    }
+  };
+  invalidateNode( mRootNode );
 }
 
 void QgsLayerTreeModel::nodeWillAddChildren( QgsLayerTreeNode *node, int indexFrom, int indexTo )

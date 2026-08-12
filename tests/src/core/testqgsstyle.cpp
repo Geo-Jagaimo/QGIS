@@ -140,6 +140,7 @@ class Dummy3DSymbol : public QgsAbstract3DSymbol
     }
     void readXml( const QDomElement &elem, const QgsReadWriteContext & ) override { id = elem.attribute( u"id"_s ); }
     void writeXml( QDomElement &elem, const QgsReadWriteContext & ) const override { elem.setAttribute( u"id"_s, id ); }
+    void setMaterialSettings( QgsAbstractMaterialSettings * ) override {};
     QList<Qgis::GeometryType> compatibleGeometryTypes() const override { return QList<Qgis::GeometryType>() << Qgis::GeometryType::Point << Qgis::GeometryType::Line; }
 
     QString id;
@@ -156,11 +157,6 @@ void TestStyle::initTestCase()
 
   // output test environment
   QgsApplication::showSettings();
-
-  // Set up the QgsSettings environment
-  QCoreApplication::setOrganizationName( u"QGIS"_s );
-  QCoreApplication::setOrganizationDomain( u"qgis.org"_s );
-  QCoreApplication::setApplicationName( u"QGIS-TEST"_s );
 
   //initize a temporary memory-based style for tests to avoid clashing with shipped symbols
   mStyle = new QgsStyle();
