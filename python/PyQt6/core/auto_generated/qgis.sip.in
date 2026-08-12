@@ -376,8 +376,15 @@ The development version
     typedef QFlags<Qgis::VectorProviderCapability> VectorProviderCapabilities;
 
 
+   enum class CreateLayerActionOnExisting /BaseType=IntEnum/
+   {
+     Abort,
+     CreateOrOverwriteFile,
+     CreateOrOverwriteLayer,
+   };
+
     enum class FeatureCountState /BaseType=IntEnum/
-      {
+    {
       Uncounted,
       UnknownCount,
     };
@@ -865,6 +872,14 @@ The development version
       Justify,
     };
 
+    enum class TextAnchorPoint /BaseType=IntEnum/
+    {
+      StartOfText,
+      CenterOfText,
+      EndOfText,
+      FollowPlacement,
+    };
+
     enum class FileFilterType /BaseType=IntEnum/
     {
       Vector,
@@ -1291,6 +1306,7 @@ The development version
       {
       QgisInternal,
       Geos,
+      Sfcgal,
     };
 
     enum class BufferSide /BaseType=IntEnum/
@@ -1745,6 +1761,10 @@ The development version
       DrawUnplacedLabels,
       CollectUnplacedLabels,
       DrawLabelMetrics,
+      IgnoreObstacles,
+      SingleCandidateOnly,
+      IgnoreOverlaps,
+      DisableSearchTree,
     };
 
     typedef QFlags<Qgis::LabelingFlag> LabelingFlags;
@@ -3870,6 +3890,44 @@ The development version
       ForceDialog,
     };
 
+    enum class CoverageCleanOverlapMergeStrategy /BaseType=IntEnum/
+    {
+      LongestBorder,
+      MaximumArea,
+      MinimumArea,
+      MinimumIndex,
+    };
+
+    enum class PdfRenderFlag /BaseType=IntFlag/
+    {
+      RenderTextAsText,
+    };
+
+    typedef QFlags<Qgis::PdfRenderFlag> PdfRenderFlags;
+
+
+    enum class RubberBandIconType /BaseType=IntEnum/
+    {
+      NoIcon,
+      CrossPlus,
+      CrossX,
+      Box,
+      Circle,
+      BoxFilled,
+      Diamond,
+      DiamondFilled,
+      SVG
+    };
+
+    enum class RubberBandComponent /BaseType=IntFlag/
+    {
+      Symbol,
+      PreviewItems,
+    };
+
+    typedef QFlags<Qgis::RubberBandComponent> RubberBandComponents;
+
+
     static const double DEFAULT_SEARCH_RADIUS_MM;
 
     static const float DEFAULT_MAPTOPIXEL_THRESHOLD;
@@ -4216,6 +4274,10 @@ QFlags<Qgis::InstancedMaterialFlag> operator|(Qgis::InstancedMaterialFlag f1, QF
 QFlags<Qgis::Map3DDebugFlag> operator|(Qgis::Map3DDebugFlag f1, QFlags<Qgis::Map3DDebugFlag> f2);
 
 QFlags<Qgis::SensorThingsExtension> operator|(Qgis::SensorThingsExtension f1, QFlags<Qgis::SensorThingsExtension> f2);
+
+QFlags<Qgis::PdfRenderFlag> operator|(Qgis::PdfRenderFlag f1, QFlags<Qgis::PdfRenderFlag> f2);
+
+QFlags<Qgis::RubberBandComponent> operator|(Qgis::RubberBandComponent f1, QFlags<Qgis::RubberBandComponent> f2);
 
 
 

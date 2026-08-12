@@ -566,12 +566,25 @@ int QgisEvent = QEvent::User + 1;
 
     /**
      * \ingroup core
+     * \brief Actions to take when attempting to create a layer on an existing datasource
+     * \since QGIS 4.2
+     */
+   enum class CreateLayerActionOnExisting : int
+   {
+     Abort, //!< Abort the creation on detecting an existing layer.
+     CreateOrOverwriteFile, //!< Create or overwrite whole file. For existing file-based datasources the entire datasource will be deleted, including all other layers in it. For non file-based datasources this is treated the same as CreateOrOverwriteLayer.
+     CreateOrOverwriteLayer, //!< Create or overwrite existing layer only. For existing file-based datasources other layers in the datasource will be untouched.
+   };
+    Q_ENUM( CreateLayerActionOnExisting )
+
+    /**
+     * \ingroup core
      * \brief Enumeration of feature count states
      * \since QGIS 3.20
      */
     enum class FeatureCountState SIP_MONKEYPATCH_SCOPEENUM_UNNEST( QgsVectorDataProvider, FeatureCountState ) : int
-      {
-      Uncounted = -2, //!< Feature count not yet computed
+    {
+      Uncounted = -2,    //!< Feature count not yet computed
       UnknownCount = -1, //!< Provider returned an unknown feature count
     };
     Q_ENUM( FeatureCountState )
@@ -1276,7 +1289,7 @@ int QgisEvent = QEvent::User + 1;
       OverPoint,   //!< Arranges candidates over a point (or centroid of a polygon), or at a preset offset from the point. Applies to point or polygon layers only.
       Line,        //!< Arranges candidates parallel to a generalised line representing the feature or parallel to a polygon's perimeter. Applies to line or polygon layers only.
       Curved,      //!< Arranges candidates following the curvature of a line feature. Applies to line layers only.
-      Horizontal,  //!< Arranges horizontal candidates scattered throughout a polygon feature. Applies to polygon layers only.
+      Horizontal,  //!< Arranges horizontal candidates scattered throughout a polygon feature or along a line feature. Applies to polygon and line layers only.
       Free,        //!< Arranges candidates scattered throughout a polygon feature. Candidates are rotated to respect the polygon's orientation. Applies to polygon layers only.
       OrderedPositionsAroundPoint, //!< Candidates are placed in predefined positions around a point. Preference is given to positions with greatest cartographic appeal, e.g., top right, bottom right, etc. Applies to point layers only.
       PerimeterCurved, //!< Arranges candidates following the curvature of a polygon's boundary. Applies to polygon layers only.
@@ -1450,6 +1463,22 @@ int QgisEvent = QEvent::User + 1;
       Justify SIP_MONKEYPATCH_COMPAT_NAME( MultiJustify ),                 //!< Justified
     };
     Q_ENUM( LabelMultiLineAlignment )
+
+    /**
+     * Anchor point of label text.
+     *
+     * \note Prior to QGIS 4.4 this was available as QgsLabelLineSettings::AnchorTextPoint
+     *
+     * \since QGIS 4.4
+     */
+    enum class TextAnchorPoint SIP_MONKEYPATCH_SCOPEENUM_UNNEST( QgsLabelLineSettings, AnchorTextPoint ) : int
+    {
+      StartOfText,     //!< Anchor using start of text
+      CenterOfText,    //!< Anchor using center of text
+      EndOfText,       //!< Anchor using end of text
+      FollowPlacement, //!< Automatically set the anchor point based on the line anchor point value. Values <25% of line length will use the start of text, values > 75% will use the end of text, and values in between will use the center of the text.
+    };
+    Q_ENUM( TextAnchorPoint )
 
     /**
      * Type of file filters
@@ -2206,6 +2235,7 @@ int QgisEvent = QEvent::User + 1;
       {
       QgisInternal SIP_MONKEYPATCH_COMPAT_NAME( ValidatorQgisInternal ), //!< Use internal QgsGeometryValidator method
       Geos SIP_MONKEYPATCH_COMPAT_NAME( ValidatorGeos ), //!< Use GEOS validation methods
+      Sfcgal, //!< Use SFCGAL validation methods. Only available for QGIS builds with SFCGAL support enabled. \since QGIS 4.4
     };
     Q_ENUM( GeometryValidationEngine )
 
@@ -3017,6 +3047,10 @@ int QgisEvent = QEvent::User + 1;
       DrawUnplacedLabels = 1 << 6,    //!< Whether to render unplaced labels as an indicator/warning for users
       CollectUnplacedLabels = 1 << 7, //!< Whether unplaced labels should be collected in the labeling results (regardless of whether they are being rendered) \since QGIS 3.20
       DrawLabelMetrics = 1 << 8,      //!< Whether to render label metric guides (for debugging) \since QGIS 3.30
+      IgnoreObstacles = 1 << 9,       //!< Disable obstacle handling \since QGIS 4.4
+      SingleCandidateOnly = 1 << 10,  //!< Generate only the single least-cost candidate for each feature. Useful for fast labeling, such as interactive labeling previews. \since QGIS 4.4
+      IgnoreOverlaps = 1 << 11,       //!< Disable overlap detection and search solver, immediately returning lowest cost candidate per feature \since QGIS 4.4
+      DisableSearchTree = 1 << 12,    //!< Disable the creation of the label search tree \since QGIS 4.4
     };
     Q_ENUM( LabelingFlag )
 
@@ -4034,7 +4068,7 @@ int QgisEvent = QEvent::User + 1;
       ChildOutput,    //!< Parameter value is taken from an output generated by a child algorithm
       StaticValue,    //!< Parameter value is a static value
       Expression,     //!< Parameter value is taken from an expression, evaluated just before the algorithm runs
-      ExpressionText, //!< Parameter value is taken from a text with expressions, evaluated just before the algorithm runs
+      ExpressionText, //!< Parameter value is taken from a text with expressions, evaluated just before the algorithm runs. \deprecated QGIS 4.4. Use Expression or StaticValue instead.
       ModelOutput,    //!< Parameter value is linked to an output parameter for the model
     };
     Q_ENUM( ProcessingModelChildParameterSource )
@@ -6899,6 +6933,78 @@ int QgisEvent = QEvent::User + 1;
     Q_ENUM( DockableWidgetInitialState )
 
     /**
+     * Merge strategies for coverage cleaning operations.
+     *
+     * \since QGIS 4.4
+     */
+    enum class CoverageCleanOverlapMergeStrategy : int
+    {
+      LongestBorder = 0, //!< Polygon with longest common border is selected to merge overlapping polygons into
+      MaximumArea = 1,   //!< Polygon with largest area is selected to merge overlapping polygons into
+      MinimumArea = 2,   //!< Polygon with minimum area is selected to merge overlapping polygons into
+      MinimumIndex = 3,  //!< Polygon with smallest input index is selected to merge overlapping polygons into
+    };
+    Q_ENUM( CoverageCleanOverlapMergeStrategy )
+
+    /**
+     * PDF rendering flags.
+     *
+     * \since QGIS 4.4
+     */
+    enum class PdfRenderFlag : int SIP_ENUM_BASETYPE( IntFlag )
+    {
+      RenderTextAsText = 1 << 0, //!< Render text items as text objects, not painter paths
+    };
+    Q_ENUM( PdfRenderFlag )
+
+    /**
+     * PDF rendering flags.
+     *
+     * \since QGIS 4.4
+     */
+    Q_DECLARE_FLAGS( PdfRenderFlags, PdfRenderFlag )
+    Q_FLAG( PdfRenderFlags )
+
+    /**
+     * Rubber band icon type.
+     *
+     * \since QGIS 4.4. Prior to QGIS 4.4 this was available as QgsRubberBand::IconType
+     */
+    enum class RubberBandIconType : int
+    {
+      NoIcon,        //!< No icon is used
+      CrossPlus,     //!< A cross is used to highlight points (+)
+      CrossX,        //!< A cross is used to highlight points (x)
+      Box,           //!< A box is used to highlight points (□)
+      Circle,        //!< A circle is used to highlight points (○)
+      BoxFilled,     //!< A filled box is used to highlight points (■)
+      Diamond,       //!< A diamond is used to highlight points (◇)
+      DiamondFilled, //!< A filled diamond is used to highlight points (◆)
+      SVG            //!< An SVG image is used to highlight points
+    };
+    Q_ENUM( RubberBandIconType )
+
+    /**
+     * Rubber band components.
+     *
+     * \since QGIS 4.4
+     */
+    enum class RubberBandComponent : int SIP_ENUM_BASETYPE( IntFlag )
+    {
+      Symbol = 1 << 0,       //!< Base symbol component
+      PreviewItems = 1 << 1, //!< Preview overlayer items
+    };
+    Q_ENUM( RubberBandComponent )
+
+    /**
+     * Rubber band components.
+     *
+     * \since QGIS 4.4
+     */
+    Q_DECLARE_FLAGS( RubberBandComponents, RubberBandComponent )
+    Q_FLAG( RubberBandComponents )
+
+    /**
      * Identify search radius in mm
      */
     static const double DEFAULT_SEARCH_RADIUS_MM;
@@ -7192,6 +7298,8 @@ Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::ArcGisRestServiceCapabilities )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::InstancedMaterialFlags )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::Map3DDebugFlags )
 Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::SensorThingsExtensions )
+Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::PdfRenderFlags )
+Q_DECLARE_OPERATORS_FOR_FLAGS( Qgis::RubberBandComponents )
 Q_DECLARE_METATYPE( Qgis::LayoutRenderFlags )
 Q_DECLARE_METATYPE( QTimeZone )
 
