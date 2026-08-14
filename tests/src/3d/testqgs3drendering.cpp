@@ -49,6 +49,7 @@
 #include "qgsmarkersymbollayer.h"
 #include "qgsmetalroughmaterialsettings.h"
 #include "qgsmetalroughtexturedmaterialsettings.h"
+#include "qgsnullmaterialsettings.h"
 #include "qgsoffscreen3dengine.h"
 #include "qgspoint3dbillboardmaterial.h"
 #include "qgspoint3dsymbol.h"
@@ -119,6 +120,8 @@ class TestQgs3DRendering : public QgsTest
     void testInstancedRenderingTransform();
     void testModelPointRendering_data();
     void testModelPointRendering();
+    void testModelColorAndTexture_data();
+    void testModelColorAndTexture();
     void testFilteredFlatTerrain();
     void testFilteredDemTerrain();
     void testFilteredExtrudedPolygons();
@@ -1572,7 +1575,6 @@ void TestQgs3DRendering::testModelPointRendering_data()
   QVariantMap basePropertiesMap;
   basePropertiesMap[u"model"_s] = testDataPath( "/mesh/tree.obj" );
 
-
   QgsPropertyCollection ddProps;
   QMatrix4x4 uniformScale;
   uniformScale.scale( 100.0f );
@@ -1697,6 +1699,76 @@ void TestQgs3DRendering::testModelPointRendering()
 
   QImage imgModel = Qgs3DUtils::captureSceneImage( engine, scene );
   QGSVERIFYIMAGECHECK( referenceImage, referenceImage, imgModel, QString(), 80, QSize( 0, 0 ), 2 );
+}
+
+void TestQgs3DRendering::testModelColorAndTexture_data()
+{
+  QTest::addColumn<QVariantMap>( "props" );
+  QTest::addColumn<QString>( "referenceImage" );
+
+  QVariantMap objPropertiesMap;
+  const QString objModelPath = QgsApplication::pkgDataPath() + u"/resources/3d/qgis_logo.obj"_s;
+  objPropertiesMap[u"model"_s] = objModelPath;
+  QTest::newRow( "obj color" ) << objPropertiesMap << u"obj_color"_s;
+
+  QVariantMap gltfPropertiesMap;
+  gltfPropertiesMap[u"model"_s] = testDataPath( "/gltf/qgis_logo.gltf" );
+  QTest::newRow( "gltf color" ) << gltfPropertiesMap << u"gltf_color"_s;
+
+  QVariantMap gltfTexturedPropertiesMap;
+  gltfTexturedPropertiesMap[u"model"_s] = testDataPath( "/gltf/BoxTextured.glb" );
+  QTest::newRow( "gltf texture" ) << gltfTexturedPropertiesMap << u"gltf_textured"_s;
+}
+
+void TestQgs3DRendering::testModelColorAndTexture()
+{
+  QFETCH( QVariantMap, props );
+  QFETCH( QString, referenceImage );
+
+  const QgsRectangle fullExtent( 0, 0, 100, 100 );
+
+  auto layerPointsZ = std::make_unique<QgsVectorLayer>( "PointZ?crs=EPSG:27700", "points Z", "memory" );
+
+  QgsFeature f1( layerPointsZ->fields() );
+  f1.setGeometry( QgsGeometry( new QgsPoint( 50, 50, 0 ) ) );
+  layerPointsZ->dataProvider()->addFeature( f1 );
+
+  QgsPoint3DSymbol *symbol = new QgsPoint3DSymbol();
+  symbol->setShape( Qgis::Point3DShape::Model );
+  symbol->setShapeProperties( props );
+  symbol->setMaterialSettings( new QgsNullMaterialSettings() );
+
+  QMatrix4x4 uniformScale;
+  uniformScale.scale( 100.0f );
+  symbol->setTransform( uniformScale );
+
+  layerPointsZ->setRenderer3D( new QgsVectorLayer3DRenderer( symbol ) );
+
+  Qgs3DMapSettings *mapSettings = new Qgs3DMapSettings;
+  mapSettings->setCrs( mProject->crs() );
+  mapSettings->setExtent( fullExtent );
+  mapSettings->setLayers( QList<QgsMapLayer *>() << layerPointsZ.get() );
+  mapSettings->setTerrainRenderingEnabled( false );
+
+  QgsPointLightSettings defaultLight;
+  defaultLight.setIntensity( 10.0 );
+  defaultLight.setPosition( mapSettings->origin() + QgsVector3D( 0, -200, 100 ) );
+  mapSettings->setLightSources( { defaultLight.clone() } );
+
+  QgsOffscreen3DEngine engine;
+  Qgs3DMapScene *scene = new Qgs3DMapScene( *mapSettings, &engine );
+  engine.setRootEntity( scene );
+
+  scene->cameraController()->setLookingAtPoint( QgsVector3D( 0, 0, 0 ), 200, 60, 0 );
+
+  // When running the test on Travis, it would initially return empty rendered image.
+  // Capturing the initial image and throwing it away fixes that. Hopefully we will
+  // find a better fix in the future.
+  Qgs3DUtils::captureSceneImage( engine, scene );
+
+  const QImage imgModel = Qgs3DUtils::captureSceneImage( engine, scene );
+
+  QGSVERIFYIMAGECHECK( referenceImage, referenceImage, imgModel, QString(), 80, QSize( 0, 0 ), 10 );
 }
 
 void TestQgs3DRendering::testBillboardRendering()
